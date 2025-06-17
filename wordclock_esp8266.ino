@@ -63,7 +63,7 @@
 #define ADR_COLSHIFTACTIVE 29
 
 
-#define NEOPIXELPIN 5       // pin to which the NeoPixels are attached
+#define NEOPIXELPIN D5       // pin to which the NeoPixels are attached
 #define BUTTONPIN 14        // pin to which the button is attached
 #define LEFT 1
 #define RIGHT 2
@@ -85,7 +85,7 @@
 #define SHORTPRESS 100
 #define LONGPRESS 2000
 
-#define CURRENT_LIMIT_LED 2500 // limit the total current sonsumed by LEDs (mA)
+#define CURRENT_LIMIT_LED 4600 // limit the total current sonsumed by LEDs (mA)
 
 #define DEFAULT_SMOOTHING_FACTOR 0.5
 
@@ -145,7 +145,7 @@ WiFiManager wifiManager;
 // example for more information on possible values.
 Adafruit_NeoMatrix matrix = Adafruit_NeoMatrix(WIDTH, HEIGHT+1, NEOPIXELPIN,
   NEO_MATRIX_TOP + NEO_MATRIX_LEFT +
-  NEO_MATRIX_ROWS + NEO_MATRIX_ZIGZAG,
+  NEO_MATRIX_ROWS + NEO_MATRIX_PROGRESSIVE,
   NEO_GRB            + NEO_KHZ800);
 
 
