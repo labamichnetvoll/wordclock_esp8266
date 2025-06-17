@@ -63,8 +63,8 @@
 #define ADR_COLSHIFTACTIVE 29
 
 
-#define NEOPIXELPIN D5       // pin to which the NeoPixels are attached
-#define BUTTONPIN 14        // pin to which the button is attached
+#define NEOPIXELPIN 14       // pin to which the NeoPixels are attached
+#define BUTTONPIN 12        // pin to which the button is attached
 #define LEFT 1
 #define RIGHT 2
 #define LINE 10
@@ -205,6 +205,17 @@ uint8_t nightModeEndMin = 0;
 int watchdogCounter = 30;
 
 bool waitForTimeAfterReboot = false; // wait for time update after reboot
+
+/* ----------------------------------------------------------------------------------
+ *                          function prototyp Labamichnetvoll
+ *  ----------------------------------------------------------------------------------
+*/
+
+/*
+ * Update LEDMatrix based on Weekday in wordclock mode
+*/
+void updateLEDweekdays();   
+
 
 // ----------------------------------------------------------------------------------
 //                                        SETUP
@@ -508,6 +519,51 @@ void loop() {
  
 }
 
+/* ----------------------------------------------------------------------------------
+ *                          Functions Labamichnetvoll
+ *  ----------------------------------------------------------------------------------
+*/
+
+void updateLEDweekdays(){
+  unsigned int weekday = ntp.getDayOfWeek();    //return weekday as unsigned int, 1:Monday - 7: Sunday 
+
+  switch (weekday)  {
+
+      case 1:   //Montag
+        ledmatrix.gridAddPixel(WIDTH -2, 4, maincolor_clock);
+        ledmatrix.gridAddPixel(WIDTH -1, 4, maincolor_clock);
+        break;
+      case 2:   //Dienstag
+        ledmatrix.gridAddPixel(0, 5, maincolor_clock);
+        ledmatrix.gridAddPixel(1, 5, maincolor_clock);
+        break;
+      case 3:   //Mittwoch
+        ledmatrix.gridAddPixel(WIDTH -2, 6, maincolor_clock);
+        ledmatrix.gridAddPixel(WIDTH -1, 6, maincolor_clock);
+        break;
+      case 4:   //Donnerstag  
+        ledmatrix.gridAddPixel(0, 7, maincolor_clock);
+        ledmatrix.gridAddPixel(1, 7, maincolor_clock);
+        break;
+      case 5:   //Freitag 
+        ledmatrix.gridAddPixel(WIDTH -2, 8, maincolor_clock);
+        ledmatrix.gridAddPixel(WIDTH -1, 8, maincolor_clock);
+        break;
+      case 6:   //Samstag
+        ledmatrix.gridAddPixel(0, 9, maincolor_clock);
+        ledmatrix.gridAddPixel(1, 9, maincolor_clock);
+        break;
+      case 7:   //Sonntag
+        ledmatrix.gridAddPixel(WIDTH -2, 10, maincolor_clock);
+        ledmatrix.gridAddPixel(WIDTH -1, 10, maincolor_clock);
+        break;
+  }
+
+
+}
+
+
+
 
 // ----------------------------------------------------------------------------------
 //                                        OTHER FUNCTIONS
@@ -540,6 +596,7 @@ void updateStateBehavior(uint8_t state){
           lastMinutes = minutes;
         }
         showStringOnClock(timeAsString, maincolor_clock);
+        updateLEDweekdays();    //Update Weekday for standard wordclock mode
         drawMinuteIndicator(minutes, maincolor_clock);
       }
       break;
