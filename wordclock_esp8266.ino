@@ -95,6 +95,21 @@
 // own datatype for matrix movement (snake and spiral)
 enum direction {right, left, up, down};
 
+//Labamichnetvoll
+// Muster-Typen als enum
+enum PatternType {
+  PATTERN_STATIC,
+  PATTERN_STRIPES,
+  PATTERN_DIAGONAL,
+  PATTERN_RANDOM,
+  PATTERN_WAVE,
+  PATTERN_COLOR_WIPE,
+  PATTERN_THEATER_CHASE,
+  PATTERN_RAINBOW,
+  PATTERN_THEATER_RAINBOW
+};
+
+
 // width of the led matrix
 #define WIDTH 11
 // height of the led matrix
@@ -215,7 +230,8 @@ bool waitForTimeAfterReboot = false; // wait for time update after reboot
  * Update LEDMatrix based on Weekday in wordclock mode
 */
 void updateLEDweekdays();   
-
+// Prototyp der Animationsfunktion
+void animateLEDMatrix(float smoothingFactor, PatternType patternType, uint32_t mainColor, bool colorShift, bool showExtraRow);
 
 // ----------------------------------------------------------------------------------
 //                                        SETUP
@@ -277,7 +293,7 @@ void setup() {
     ledmatrix.drawOnMatrixInstant();
   }
 
-   
+
   
   /** (alternative) Use directly STA/AP Mode of ESP8266   **/
   
@@ -417,6 +433,8 @@ void loop() {
   
   // handle Webserver
   server.handleClient();
+
+     animateLEDMatrix(0.3, PATTERN_THEATER_RAINBOW, colors24bit[6], true, false);
 
   // send regularly heartbeat messages via UDP multicast
   if(millis() - lastheartbeat > PERIOD_HEARTBEAT){
@@ -559,8 +577,77 @@ void updateLEDweekdays(){
         break;
   }
 
-
 }
+
+
+// ChatGPT Animierungsfunktion
+void animateLEDMatrix(float smoothingFactor, PatternType patternType, uint32_t mainColor, bool colorShift, bool showExtraRow) {
+  static uint16_t frame = 0;  // Für Animationen
+
+  // empty the targetgrid
+    ledmatrix.gridFlush();
+
+  for (uint8_t y = 0; y < 11; y++) {
+    for (uint8_t x = 0; x < 11; x++) {
+      uint32_t color = mainColor;
+      if (colorShift) color = colors24bit[(x + y + frame) % NUM_COLORS];
+
+      bool draw = false;
+      switch (patternType) {
+        case PATTERN_STATIC:
+          draw = true;
+          break;
+        case PATTERN_STRIPES:
+          draw = (y % 2 == 0);
+          break;
+        case PATTERN_DIAGONAL:
+          draw = ((x + y) % 3 == 0);
+          break;
+        case PATTERN_RANDOM:
+          draw = (random(0, 5) == 0);
+          break;
+        case PATTERN_WAVE:
+          draw = ((sin((x + frame * 0.2) + y * 0.5) + 1) * 5.5 > y);
+          break;
+        case PATTERN_COLOR_WIPE:
+          draw = ((y * 11 + x) <= frame % 121);
+          break;
+        case PATTERN_THEATER_CHASE:
+          draw = ((x + frame) % 3 == 0);
+          break;
+        case PATTERN_RAINBOW:
+          color = colors24bit[(x + frame) % NUM_COLORS];
+          draw = true;
+          break;
+        case PATTERN_THEATER_RAINBOW:
+          draw = ((x + frame) % 3 == 0);
+          if (draw) color = colors24bit[(x + frame) % NUM_COLORS];
+          break;
+      }
+
+      if (draw) ledmatrix.gridAddPixel(x, y, color);
+    }
+  }
+
+  // Zusätzliche LEDs (falls aktiviert)
+  if (showExtraRow) {
+    for (uint8_t i = 3; i <= 9; i += 2) {
+      uint32_t color = colorShift ? colors24bit[(i + frame) % NUM_COLORS] : mainColor;
+      ledmatrix.gridAddPixel(i, 12, color);
+    }
+  }
+
+  if (smoothingFactor >= 1.0) {
+    ledmatrix.drawOnMatrixInstant();
+  } else {
+    ledmatrix.drawOnMatrixSmooth(smoothingFactor);
+  }
+
+  frame++;
+}
+
+// Beispielaufruf (z. B. in loop):
+// animateLEDMatrix(0.3, PATTERN_WAVE, colors24bit[2], true, true);
 
 
 
