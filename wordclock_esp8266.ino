@@ -106,7 +106,8 @@ enum PatternType {
   PATTERN_COLOR_WIPE,
   PATTERN_THEATER_CHASE,
   PATTERN_RAINBOW,
-  PATTERN_THEATER_RAINBOW
+  PATTERN_THEATER_RAINBOW,
+  PATTERN_FADE_CENTER
 };
 
 
@@ -434,7 +435,6 @@ void loop() {
   // handle Webserver
   server.handleClient();
 
-     animateLEDMatrix(0.3, PATTERN_THEATER_RAINBOW, colors24bit[6], true, false);
 
   // send regularly heartbeat messages via UDP multicast
   if(millis() - lastheartbeat > PERIOD_HEARTBEAT){
@@ -460,6 +460,9 @@ void loop() {
   if((ledOff || nightMode) && !waitForTimeAfterReboot){
     ledmatrix.gridFlush();
   }
+
+     //animateLEDMatrix(0.5, PATTERN_FADE_CENTER, colors24bit[6], true, false);
+     //delay(50);
 
   // periodically write colors to matrix
   if(millis() - lastAnimationStep > PERIOD_MATRIXUPDATE && !waitForTimeAfterReboot && (millis() - lastLEDdirect > TIMEOUT_LEDDIRECT)){
@@ -622,6 +625,22 @@ void animateLEDMatrix(float smoothingFactor, PatternType patternType, uint32_t m
         case PATTERN_THEATER_RAINBOW:
           draw = ((x + frame) % 3 == 0);
           if (draw) color = colors24bit[(x + frame) % NUM_COLORS];
+          break;
+        case PATTERN_FADE_CENTER:
+           {
+            int centerX = 5;
+            int centerY = 5;
+            float distance = sqrtf((x - centerX) * (x - centerX) + (y - centerY) * (y - centerY));
+            brightness = fmaxf(0.0f, 1.0f - distance / 5.5f);  // Wert angepasst
+            uint8_t r = (mainColor >> 16) & 0xFF;
+            uint8_t g = (mainColor >> 8) & 0xFF;
+            uint8_t b = mainColor & 0xFF;
+            r = (uint8_t)(r * brightness);
+            g = (uint8_t)(g * brightness);
+            b = (uint8_t)(b * brightness);
+            color = LEDMatrix::Color24bit(r, g, b);
+            draw = (brightness > 0.01f);
+          }
           break;
       }
 
