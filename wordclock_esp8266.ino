@@ -65,6 +65,7 @@
 
 #define NEOPIXELPIN 14       // pin to which the NeoPixels are attached
 #define BUTTONPIN 12        // pin to which the button is attached
+#define AMBIENT_PIN D8      // pin to which to ambient light is attached
 #define LEFT 1
 #define RIGHT 2
 #define LINE 10
@@ -115,6 +116,8 @@ enum PatternType {
 #define WIDTH 11
 // height of the led matrix
 #define HEIGHT 11
+// extra leds for ambient light
+#define EXTRA_LEDS 98
 
 // own datatype for state machine states
 #define NUM_STATES 6
@@ -164,6 +167,8 @@ Adafruit_NeoMatrix matrix = Adafruit_NeoMatrix(WIDTH, HEIGHT+1, NEOPIXELPIN,
   NEO_MATRIX_ROWS + NEO_MATRIX_PROGRESSIVE,
   NEO_GRB            + NEO_KHZ800);
 
+// create object for ambient light
+Adafruit_NeoPixel ambient(EXTRA_LEDS, AMBIENT_PIN, NEO_GRB + NEO_KHZ800);
 
 // seven predefined colors24bit (green, red, yellow, purple, orange, lightgreen, blue) 
 const uint32_t colors24bit[NUM_COLORS] = {
@@ -234,6 +239,11 @@ void updateLEDweekdays();
 // Prototyp der Animationsfunktion
 void animateLEDMatrix(float smoothingFactor, PatternType patternType, uint32_t mainColor, bool colorShift, bool showExtraRow);
 
+void AmbientLight1();
+void AmbientAnimation1();
+void AmbientAnimation2();
+void AmbientAnimation3();
+void AmbientAnimation4();
 // ----------------------------------------------------------------------------------
 //                                        SETUP
 // ----------------------------------------------------------------------------------
@@ -255,6 +265,10 @@ void setup() {
   // setup Matrix LED functions
   ledmatrix.setupMatrix();
   ledmatrix.setCurrentLimit(CURRENT_LIMIT_LED);
+
+  //Init Ambient Light
+  ambient.begin();
+  ambient.show();
 
   if(ESP.getResetReason().equals("Power On") || ESP.getResetReason().equals("External System")){
     // Turn on minutes leds (blue)
@@ -669,7 +683,115 @@ void animateLEDMatrix(float smoothingFactor, PatternType patternType, uint32_t m
 // animateLEDMatrix(0.3, PATTERN_WAVE, colors24bit[2], true, true);
 
 
+//
+//  AmbientLight function 1 
+//  static Light
 
+void AmbientLight1()  {
+  for (int i = 0; i < EXTRA_LEDS; i++)  {
+    ambient.setPixelColor(i, ambient.Color(0,0,150));
+
+  }
+ambient.show();
+delay(1000);
+}
+
+// -------------------- ANIMATION 1 --------------------
+// Laufring mit Schweif
+void AmbientAnimation1()  {
+  // Lokale Variablen für die Animation
+  int pos = 0;           // aktuelle Position
+  int delayTime = 50;    // Geschwindigkeit (ms)
+  int trailLength = 5;   // Länge des Schweifs
+
+  ambient.clear();
+
+  // Hauptpixel (volles Rot)
+  ambient.setPixelColor(pos, ambient.Color(255, 0, 0));
+
+  // Schweif berechnen
+  for (int i = 1; i <= trailLength; i++) {
+    int index = (pos - i + EXTRA_LEDS) % EXTRA_LEDS; // rückwärts mit Wrap
+    int fade = 255 - (i * (255 / (trailLength + 1))); // Helligkeit abnehmen
+    ambient.setPixelColor(index, ambient.Color(fade, 0, 0));
+  }
+
+  ambient.show();
+
+  // Position weiterschieben
+  pos++;
+  if (pos >= EXTRA_LEDS) {
+    pos = 0;
+  }
+
+  delay(delayTime);
+}
+
+
+// -------------------- ANIMATION 2 --------------------
+// Regenbogenlauflicht
+void AmbientAnimation2() {
+  int pos = 0; 
+  for (int i = 0; i < EXTRA_LEDS; i++) {
+    int colorIndex = (i * 256 / EXTRA_LEDS + pos) % 256;
+    ambient.setPixelColor(i, Wheel(colorIndex));
+  }
+  ambient.show();
+  pos = (pos + 1) % 256;
+  delay(30);
+}
+
+// -------------------- ANIMATION 3 --------------------
+// Laufendes Puls-Wellenlicht (Helligkeit hoch/runter)
+void AmbientAnimation3() {
+  int pos = 0; 
+  ambient.clear();
+  for (int i = 0; i < EXTRA_LEDS; i++) {
+    int wave = (int)(127.5 * (1 + sin((pos + i) * 2 * 3.14159 / EXTRA_LEDS)));
+    ambient.setPixelColor(i, ambient.Color(wave, 0, 255-wave));
+  }
+  ambient.show();
+  pos = (pos + 1) % EXTRA_LEDS;
+  delay(50);
+}
+
+// -------------------- ANIMATION 4 --------------------
+// Zufällige Glitzer-Blitze
+void AmbientAnimation4() {
+  // leichtes Fade aller LEDs
+  for (int i = 0; i < EXTRA_LEDS; i++) {
+    uint32_t c = ambient.getPixelColor(i);
+    uint8_t r = ((c >> 16) & 0xFF) * 0.8;
+    uint8_t g = ((c >> 8) & 0xFF) * 0.8;
+    uint8_t b = (c & 0xFF) * 0.8;
+    ambient.setPixelColor(i, ambient.Color(r, g, b));
+  }
+
+  // zufällige Blitze
+  int sparkleCount = random(1, 4);
+  for (int j = 0; j < sparkleCount; j++) {
+    int i = random(0, EXTRA_LEDS);
+    ambient.setPixelColor(i, ambient.Color(255, 255, 255));
+  }
+
+  ambient.show();
+  delay(50);
+}
+
+// -------------------- HELPER --------------------
+// Farbwheel für Regenbogen
+uint32_t Wheel(byte WheelPos) {
+  WheelPos = 255 - WheelPos;
+  if (WheelPos < 85) {
+    return ambient.Color(255 - WheelPos * 3, 0, WheelPos * 3);
+  }
+  if (WheelPos < 170) {
+    WheelPos -= 85;
+    return ambient.Color(0, WheelPos * 3, 255 - WheelPos * 3);
+  }
+  WheelPos -= 170;
+  return ambient.Color(WheelPos * 3, 255 - WheelPos * 3, 0);
+}
 
 // ----------------------------------------------------------------------------------
 //                                        OTHER FUNCTIONS
@@ -704,6 +826,12 @@ void updateStateBehavior(uint8_t state){
         showStringOnClock(timeAsString, maincolor_clock);
         updateLEDweekdays();    //Update Weekday for standard wordclock mode
         drawMinuteIndicator(minutes, maincolor_clock);
+        AmbientLight1();
+          // Beispiel: aktuell eine Animation laufen lassen
+        //AmbientAnimation1();
+        // AmbientAnimation2();
+        // AmbientAnimation3();
+        // AmbientAnimation4();
       }
       break;
     // state diclock
