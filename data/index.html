@@ -316,6 +316,31 @@
 			<div class="grid-item mode-item"><span class="dot-mode" onclick="modechange(this, 4)"><a onclick="sendCommand('./cmd?mode=snake')" class="buttonClass" style="width: 100%;"><img src = "./icons/snake.svg" style="height:50px"/></a></span></div>
 			<div class="grid-item mode-item"><span class="dot-mode" onclick="modechange(this, 5)"><a onclick="sendCommand('./cmd?mode=pingpong')" class="buttonClass" style="width: 100%;"><img src = "./icons/pingpong.svg" style="height:50px"/></a></span></div>
 		</div>
+		<!-- Labamichnetvoll Special Rainbow Stuff Test-->
+		 <!-- Schritt 1: Ein neuer, abgetrennter Bereich -->
+		<div class="verticalline"></div>
+		<div class="headline">
+	    	SPECIAL
+		</div>
+		<!-- Schritt 2: Der neue Button -->
+		<div class="grid-container" style="grid-template-columns: auto;">
+			<div class="grid-item mode-item">
+				<span class="dot-mode" onclick="modechange(this, 6)">
+					<a onclick="sendCommand('./cmd?mode=rainbow')" class="buttonClass" style="width: 100%;">
+						RAINBOW
+					</a>
+				</span>
+			</div>
+		</div>
+		<!-- Schritt 3: Der Container für den Slider (erstmal versteckt) -->
+		<div class="main-container hidden" id="rainbowcontainer">
+			<div class="number-container">
+				<label for="rainbowspeed">Rainbow Speed:</label>
+				<input type="range" id="rainbowspeed" name="rainbowspeed" min="1" max="50"
+					onchange="sendCommand('./cmd?rainbowspeed=' + this.value)">
+			</div>
+		</div>
+
 		<div class="checkbox-container">
 			<label for="LED_Off" style="align-self: flex-start">LEDs OFF</label> 
 			<div>
@@ -538,6 +563,13 @@
 					document.getElementById("brightness").value = parseInt(myVar.brightness);
 					document.getElementById("colorshiftspeed").value = parseInt(myVar.colorshiftspeed);
 
+					// NEU START: Wert für den Rainbow-Slider setzen
+					if(myVar.rainbowspeed) {
+						document.getElementById("rainbowspeed").value = parseInt(myVar.rainbowspeed);
+					}
+					// NEU ENDE
+
+
 					updateDisplay(parseInt(myVar.modeid));
 					console.log(myVar);
 				}
@@ -590,6 +622,12 @@
 							document.getElementById("pongcontainer").classList.remove("hidden");
 							document.getElementById("colorshiftcontainer").classList.add("hidden");
 							break;
+						// NEUer RainbowModus
+						case 6: // Rainbow
+							document.getElementById("rainbowcontainer").classList.remove("hidden"); // unseren Slider anzeigen
+							document.getElementById("colorshiftcontainer").classList.add("hidden"); // ColorShift ausblenden
+							break;
+						// NEU ENDE
 
 					}
 				}
