@@ -76,6 +76,8 @@
 #define PERIOD_TETRIS 50
 #define PERIOD_SNAKE 50
 #define PERIOD_PONG 10
+//NEU Rainbow
+#define PERIOD_RAINBOW 20       //Which value??
 #define TIMEOUT_LEDDIRECT 5000
 #define PERIOD_STATECHANGE 10000
 #define PERIOD_NTPUPDATE 30000
@@ -120,9 +122,9 @@ enum PatternType {
 #define EXTRA_LEDS 98
 
 // own datatype for state machine states
-#define NUM_STATES 6
-enum ClockState {st_clock, st_diclock, st_spiral, st_tetris, st_snake, st_pingpong};
-const String stateNames[] = {"Clock", "DiClock", "Sprial", "Tetris", "Snake", "PingPong"};
+#define NUM_STATES 7    // 6 --> 7
+enum ClockState {st_clock, st_diclock, st_spiral, st_tetris, st_snake, st_pingpong, st_rainbow};
+const String stateNames[] = {"Clock", "DiClock", "Sprial", "Tetris", "Snake", "PingPong", "RainBow"};
 
 // ports
 const unsigned int localPort = 2390;
@@ -139,10 +141,10 @@ IPAddress Gateway_AccessPoint(192,168,10,0);
 IPAddress Subnetmask_AccessPoint(255,255,255,0);
 
 // hostname
-const String hostname = "wordclock";
+const String hostname = "wordclock-001";
 
 // URL DNS server
-const char WebserverURL[] = "www.wordclock.local";
+const char WebserverURL[] = "www.wordclock1.local";
 
 int utcOffset = 60; // UTC offset in minutes
 
@@ -182,6 +184,11 @@ const uint32_t colors24bit[NUM_COLORS] = {
 
 uint8_t brightness = 40;            // current brightness of leds
 bool sprialDir = false;
+// NEU START
+uint8_t g_rainbowspeed = 20; // Standardwert für die Geschwindigkeit
+uint16_t g_rainbowFrame = 0;      // Speichert den aktuellen Animations-Frame
+unsigned long g_lastRainbowUpdate = 0; // Speichert den Zeitpunkt des letzten Frame-Updates
+// NEU ENDE
 
 // timestamp variables
 long lastheartbeat = millis();      // time of last heartbeat sending
@@ -239,11 +246,14 @@ void updateLEDweekdays();
 // Prototyp der Animationsfunktion
 void animateLEDMatrix(float smoothingFactor, PatternType patternType, uint32_t mainColor, bool colorShift, bool showExtraRow);
 
-void AmbientLight1();
+void AmbientLight1(int red, int green, int blue);
 void AmbientAnimation1();
 void AmbientAnimation2();
 void AmbientAnimation3();
 void AmbientAnimation4();
+
+void runRainbow();
+uint32_t Wheel1(byte WheelPos);
 // ----------------------------------------------------------------------------------
 //                                        SETUP
 // ----------------------------------------------------------------------------------
@@ -687,13 +697,15 @@ void animateLEDMatrix(float smoothingFactor, PatternType patternType, uint32_t m
 //  AmbientLight function 1 
 //  static Light
 
-void AmbientLight1()  {
+void AmbientLight1(int red, int green, int blue)  {
   for (int i = 0; i < EXTRA_LEDS; i++)  {
-    ambient.setPixelColor(i, ambient.Color(0,0,150));
-
+    ambient.setPixelColor(i, ambient.Color(red,green,blue));
+    // ERLAUBE OTA-UPDATES WÄHREND DES LANGEN DURCHLAUFS
+    if (i % 10 == 0) { // Nicht bei jeder LED, aber alle 10, um nicht zu sehr auszubremsen
+      ArduinoOTA.handle();
+    }
   }
 ambient.show();
-delay(1000);
 }
 
 // -------------------- ANIMATION 1 --------------------
@@ -793,6 +805,49 @@ uint32_t Wheel(byte WheelPos) {
   return ambient.Color(WheelPos * 3, 255 - WheelPos * 3, 0);
 }
 
+// #####################################################################
+// NEU START: Unsere neuen Funktionen für den Regenbogen-Effekt
+// #####################################################################
+
+/**
+ * @brief Hilfsfunktion, die aus einem Wert von 0-255 eine Farbe des Regenbogens erzeugt.
+ * @param WheelPos Position auf dem Farbrad (0-255)
+ * @return 24-bit Farbwert (packed in uint32_t)
+ */
+uint32_t Wheel1(byte WheelPos) {
+  WheelPos = 255 - WheelPos;
+  if(WheelPos < 85) {
+    // KORREKTUR: Wir verwenden das 'matrix'-Objekt, nicht 'ledmatrix'
+    return matrix.Color(255 - WheelPos * 3, 0, WheelPos * 3);
+  }
+  if(WheelPos < 170) {
+    WheelPos -= 85;
+    // KORREKTUR: Wir verwenden das 'matrix'-Objekt
+    return matrix.Color(0, WheelPos * 3, 255 - WheelPos * 3);
+  }
+  WheelPos -= 170;
+  // KORREKTUR: Wir verwenden das 'matrix'-Objekt
+  return matrix.Color(WheelPos * 3, 255 - WheelPos * 3, 0);
+}
+
+
+/**
+ * @brief Reine Zeichenfunktion für den Regenbogen-Effekt. (Version 3.0 - NICHT-BLOCKIEREND)
+ *        Malt ein einziges Frame basierend auf dem globalen g_rainbowFrame.
+ */
+void runRainbow() {
+  // Diese Funktion enthält KEIN Timing mehr. Sie malt nur.
+  ledmatrix.gridFlush(); // Puffer leeren
+
+  for (uint8_t y = 0; y < HEIGHT; y++) {
+    for (uint8_t x = 0; x < WIDTH; x++) {
+      // Die verbesserte visuelle Logik für diagonale Wellen
+      uint32_t color = Wheel1( ( (x + y) * 12 + g_rainbowFrame) & 255 );
+      ledmatrix.gridAddPixel(x, y, color);
+    }
+  }
+}
+
 // ----------------------------------------------------------------------------------
 //                                        OTHER FUNCTIONS
 // ----------------------------------------------------------------------------------
@@ -826,7 +881,7 @@ void updateStateBehavior(uint8_t state){
         showStringOnClock(timeAsString, maincolor_clock);
         updateLEDweekdays();    //Update Weekday for standard wordclock mode
         drawMinuteIndicator(minutes, maincolor_clock);
-        AmbientLight1();
+        //AmbientLight1(255,255,255);
           // Beispiel: aktuell eine Animation laufen lassen
         //AmbientAnimation1();
         // AmbientAnimation2();
@@ -840,6 +895,8 @@ void updateStateBehavior(uint8_t state){
         int hours = ntp.getHours24();
         int minutes = ntp.getMinutes();
         showDigitalClock(hours, minutes, maincolor_clock);
+        ambient.clear();
+        ambient.show();
       }
       break;
     // state spiral
@@ -891,6 +948,22 @@ void updateStateBehavior(uint8_t state){
     case st_pingpong:
       {
         mypong.loopCycle();
+      }
+      break;
+    //NEU Rainbow
+    // NEU START: Die finale, OTA-sichere Implementierung
+    case st_rainbow:
+      {
+        // TEIL 1: Die Animation steuern (den Frame weiterschalten)
+        // Prüfe, ob genug Zeit seit dem letzten Frame-Update vergangen ist.
+        if (millis() - g_lastRainbowUpdate > (60 - g_rainbowspeed)) {
+          g_lastRainbowUpdate = millis(); // Zeitpunkt des Updates speichern
+          g_rainbowFrame++;               // Nur DANN den Frame-Zähler erhöhen
+        }
+
+        // TEIL 2: Das aktuelle Bild IMMER zeichnen
+        // Rufe die reine Zeichenfunktion auf. Sie malt das Bild für den aktuellen g_rainbowFrame.
+        runRainbow();
       }
       break;
   }
@@ -981,6 +1054,16 @@ void entryAction(uint8_t state){
         filterFactor = 1.0; // no smoothing
         mypong.initGame(1);
       }
+      break;
+    //NEU Rainbow
+    case st_rainbow:
+      behaviorUpdatePeriod = PERIOD_RAINBOW;
+      // Deaktiviere das Smoothing für scharfe, klare Farben bei der Animation
+      filterFactor = 1.0; 
+      ledmatrix.setDynamicColorShiftPhase(-1); // disable dyn. color shift
+      
+      g_rainbowFrame = 0;     // Animation wieder bei Frame 0 starten
+      g_lastRainbowUpdate = millis();    // Den Timer für das erste Frame-Update initialisieren
       break;
   }
 }
@@ -1230,8 +1313,20 @@ void handleCommand() {
     }
     else if(modestr == "pingpong"){
       stateChange(st_pingpong, true);
-    } 
+    }
+    // NEU START: Rainbow-Modus 
+    else if(server.arg("mode") == "rainbow"){
+      stateChange(st_rainbow, true);
+    }
+    // NEU ENDE 
   }
+  // NEU START: 
+  // neuer Slider für Speed von Rainbow
+  else if(server.hasArg("rainbowspeed")){
+    g_rainbowspeed = server.arg("rainbowspeed").toInt(); // Wert vom Slider auslesen und in unsere Variable speichern
+  }
+  // NEU ENDE
+
   else if(server.argName(0) == "ledoff"){
     String modestr = server.arg(0);
     logger.logString("LED off change via Webserver to: " + modestr);
@@ -1429,6 +1524,10 @@ void handleDataRequest() {
       message += "\"colorshift\":\"" + String(dynColorShiftActive) + "\"";
       message += ",";
       message += "\"colorshiftspeed\":\"" + String(dynColorShiftSpeed) + "\"";
+      // NEU START: 
+      message += ",";
+      message += "\"rainbowspeed\":\"" + String(g_rainbowspeed) + "\"";
+      // NEU ENDE
     }
     message += "}";
     server.send(200, "application/json", message);
