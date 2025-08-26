@@ -182,6 +182,7 @@ const uint32_t colors24bit[NUM_COLORS] = {
 
 uint8_t brightness = 40;            // current brightness of leds
 bool sprialDir = false;
+bool ambientLightStatus = false;    //Variable für Status der AmbientBeleuchtung
 
 // timestamp variables
 long lastheartbeat = millis();      // time of last heartbeat sending
@@ -477,6 +478,9 @@ void loop() {
 
      //animateLEDMatrix(0.5, PATTERN_FADE_CENTER, colors24bit[6], true, false);
      //delay(50);
+  
+  //TEST
+  handleOTA();
 
   // periodically write colors to matrix
   if(millis() - lastAnimationStep > PERIOD_MATRIXUPDATE && !waitForTimeAfterReboot && (millis() - lastLEDdirect > TIMEOUT_LEDDIRECT)){
@@ -495,6 +499,9 @@ void loop() {
     // save last automatic state change
     lastStateChange = millis();
   }
+
+  //TEST
+  handleOTA();
 
   // NTP time update
   if(millis() - lastNTPUpdate > PERIOD_NTPUPDATE){
@@ -688,12 +695,11 @@ void animateLEDMatrix(float smoothingFactor, PatternType patternType, uint32_t m
 //  static Light
 
 void AmbientLight1()  {
-  for (int i = 0; i < EXTRA_LEDS; i++)  {
-    ambient.setPixelColor(i, ambient.Color(0,0,150));
-
-  }
-ambient.show();
-delay(1000);
+  static int pos = 0;
+  ambient.setPixelColor(pos, ambient.Color(0,0,150));
+  pos++;
+  if (pos == EXTRA_LEDS)  pos = 0;
+  ambient.show();
 }
 
 // -------------------- ANIMATION 1 --------------------
@@ -826,7 +832,11 @@ void updateStateBehavior(uint8_t state){
         showStringOnClock(timeAsString, maincolor_clock);
         updateLEDweekdays();    //Update Weekday for standard wordclock mode
         drawMinuteIndicator(minutes, maincolor_clock);
-        AmbientLight1();
+        //if (!ambientLightStatus){
+          ambientLightStatus = true;
+          AmbientLight1();
+        //
+        
           // Beispiel: aktuell eine Animation laufen lassen
         //AmbientAnimation1();
         // AmbientAnimation2();
@@ -837,6 +847,9 @@ void updateStateBehavior(uint8_t state){
     // state diclock
     case st_diclock:
       {
+        ambientLightStatus = false;
+        ambient.clear();
+        ambient.show();
         int hours = ntp.getHours24();
         int minutes = ntp.getMinutes();
         showDigitalClock(hours, minutes, maincolor_clock);
@@ -934,7 +947,7 @@ void entryAction(uint8_t state){
   filterFactor = DEFAULT_SMOOTHING_FACTOR;
   switch(state){
     case st_clock:
-      behaviorUpdatePeriod = PERIOD_TIMEVISUUPDATE;
+      behaviorUpdatePeriod = PERIOD_TIMEVISUUPDATE / 1000;
       break;
     case st_diclock:
       behaviorUpdatePeriod = PERIOD_TIMEVISUUPDATE;
