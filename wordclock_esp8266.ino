@@ -1505,8 +1505,8 @@ void handleDataRequest() {
       message += ",";
       message += "\"ambient_speed\":\"" + String(g_ambientSpeed) + "\"";
       message += ",";
-      message += ",";
       message += "\"ambient_brightness\":\"" + String(g_ambientBrightness) + "\"";
+      message += ",";
       // Wir wandeln die Farbe zurück in einen Hex-String mit führenden Nullen
       char hex_string[7];
       sprintf(hex_string, "%06x", g_ambientColor);
