@@ -96,22 +96,6 @@
 // own datatype for matrix movement (snake and spiral)
 enum direction {right, left, up, down};
 
-//Labamichnetvoll
-// Muster-Typen als enum
-enum PatternType {
-  PATTERN_STATIC,
-  PATTERN_STRIPES,
-  PATTERN_DIAGONAL,
-  PATTERN_RANDOM,
-  PATTERN_WAVE,
-  PATTERN_COLOR_WIPE,
-  PATTERN_THEATER_CHASE,
-  PATTERN_RAINBOW,
-  PATTERN_THEATER_RAINBOW,
-  PATTERN_FADE_CENTER
-};
-
-
 // width of the led matrix
 #define WIDTH 11
 // height of the led matrix
@@ -170,6 +154,25 @@ Adafruit_NeoMatrix matrix = Adafruit_NeoMatrix(WIDTH, HEIGHT+1, NEOPIXELPIN,
 // create object for ambient light
 Adafruit_NeoPixel ambient(EXTRA_LEDS, AMBIENT_PIN, NEO_GRB + NEO_KHZ800);
 
+// own datatype for AmbientLight animations
+enum AmbientMode {
+  AMBIENT_OFF,
+  AMBIENT_STATIC,
+  AMBIENT_BREATHING,
+  AMBIENT_RAINBOW_CHASE,
+  AMBIENT_PULSE_WAVE,
+  AMBIENT_GLITTER
+};
+
+//standard settings for ambient light. --> TODO: Add EEPROM settings for last values
+AmbientMode g_ambientMode = AMBIENT_STATIC; // static mode
+uint8_t     g_ambientSpeed = 20;            // range 1-50
+uint8_t     g_ambientBrightness = 150;      // Helligkeit (0-255), std: 150
+uint32_t    g_ambientColor = LEDMatrix::Color24bit(0, 0, 150); //blue
+uint16_t    g_ambientFrame = 0;             // Frame-Zähler für Animationen
+unsigned long g_lastAmbientUpdate = 0;    // Zeitstempel für das Timing von Animationen
+
+
 // seven predefined colors24bit (green, red, yellow, purple, orange, lightgreen, blue) 
 const uint32_t colors24bit[NUM_COLORS] = {
   LEDMatrix::Color24bit(0, 255, 0),
@@ -182,7 +185,6 @@ const uint32_t colors24bit[NUM_COLORS] = {
 
 uint8_t brightness = 40;            // current brightness of leds
 bool sprialDir = false;
-bool ambientLightStatus = false;    //Variable für Status der AmbientBeleuchtung
 
 // timestamp variables
 long lastheartbeat = millis();      // time of last heartbeat sending
@@ -237,9 +239,8 @@ bool waitForTimeAfterReboot = false; // wait for time update after reboot
  * Update LEDMatrix based on Weekday in wordclock mode
 */
 void updateLEDweekdays();   
-// Prototyp der Animationsfunktion
-void animateLEDMatrix(float smoothingFactor, PatternType patternType, uint32_t mainColor, bool colorShift, bool showExtraRow);
 
+void updateAmbientLight();
 void AmbientLight1();
 void AmbientAnimation1();
 void AmbientAnimation2();
@@ -475,9 +476,6 @@ void loop() {
   if((ledOff || nightMode) && !waitForTimeAfterReboot){
     ledmatrix.gridFlush();
   }
-
-     //animateLEDMatrix(0.5, PATTERN_FADE_CENTER, colors24bit[6], true, false);
-     //delay(50);
   
   //TEST
   handleOTA();
@@ -603,93 +601,6 @@ void updateLEDweekdays(){
 
 }
 
-
-// ChatGPT Animierungsfunktion
-void animateLEDMatrix(float smoothingFactor, PatternType patternType, uint32_t mainColor, bool colorShift, bool showExtraRow) {
-  static uint16_t frame = 0;  // Für Animationen
-
-  // empty the targetgrid
-    ledmatrix.gridFlush();
-
-  for (uint8_t y = 0; y < 11; y++) {
-    for (uint8_t x = 0; x < 11; x++) {
-      uint32_t color = mainColor;
-      if (colorShift) color = colors24bit[(x + y + frame) % NUM_COLORS];
-
-      bool draw = false;
-      switch (patternType) {
-        case PATTERN_STATIC:
-          draw = true;
-          break;
-        case PATTERN_STRIPES:
-          draw = (y % 2 == 0);
-          break;
-        case PATTERN_DIAGONAL:
-          draw = ((x + y) % 3 == 0);
-          break;
-        case PATTERN_RANDOM:
-          draw = (random(0, 5) == 0);
-          break;
-        case PATTERN_WAVE:
-          draw = ((sin((x + frame * 0.2) + y * 0.5) + 1) * 5.5 > y);
-          break;
-        case PATTERN_COLOR_WIPE:
-          draw = ((y * 11 + x) <= frame % 121);
-          break;
-        case PATTERN_THEATER_CHASE:
-          draw = ((x + frame) % 3 == 0);
-          break;
-        case PATTERN_RAINBOW:
-          color = colors24bit[(x + frame) % NUM_COLORS];
-          draw = true;
-          break;
-        case PATTERN_THEATER_RAINBOW:
-          draw = ((x + frame) % 3 == 0);
-          if (draw) color = colors24bit[(x + frame) % NUM_COLORS];
-          break;
-        case PATTERN_FADE_CENTER:
-           {
-            int centerX = 5;
-            int centerY = 5;
-            float distance = sqrtf((x - centerX) * (x - centerX) + (y - centerY) * (y - centerY));
-            brightness = fmaxf(0.0f, 1.0f - distance / 5.5f);  // Wert angepasst
-            uint8_t r = (mainColor >> 16) & 0xFF;
-            uint8_t g = (mainColor >> 8) & 0xFF;
-            uint8_t b = mainColor & 0xFF;
-            r = (uint8_t)(r * brightness);
-            g = (uint8_t)(g * brightness);
-            b = (uint8_t)(b * brightness);
-            color = LEDMatrix::Color24bit(r, g, b);
-            draw = (brightness > 0.01f);
-          }
-          break;
-      }
-
-      if (draw) ledmatrix.gridAddPixel(x, y, color);
-    }
-  }
-
-  // Zusätzliche LEDs (falls aktiviert)
-  if (showExtraRow) {
-    for (uint8_t i = 3; i <= 9; i += 2) {
-      uint32_t color = colorShift ? colors24bit[(i + frame) % NUM_COLORS] : mainColor;
-      ledmatrix.gridAddPixel(i, 12, color);
-    }
-  }
-
-  if (smoothingFactor >= 1.0) {
-    ledmatrix.drawOnMatrixInstant();
-  } else {
-    ledmatrix.drawOnMatrixSmooth(smoothingFactor);
-  }
-
-  frame++;
-}
-
-// Beispielaufruf (z. B. in loop):
-// animateLEDMatrix(0.3, PATTERN_WAVE, colors24bit[2], true, true);
-
-
 //
 //  AmbientLight function 1 
 //  static Light
@@ -799,6 +710,131 @@ uint32_t Wheel(byte WheelPos) {
   return ambient.Color(WheelPos * 3, 255 - WheelPos * 3, 0);
 }
 
+
+//AmbientLight
+/**
+ * @brief Führt die aktuelle Animation für das Ambient-Licht aus.
+ *        Wird kontinuierlich aus der Haupt-loop() aufgerufen.
+ *        Arbeitet komplett nicht-blockierend mit millis().
+ */
+void updateAmbientLight() {
+
+  // Wendet die globale Helligkeit auf den gesamten Ambient-Streifen an.
+  // Dieser Befehl muss vor .show() aufgerufen werden.
+  ambient.setBrightness(g_ambientBrightness);
+
+  // 1. Berechne das Basis-Intervall (wie bisher, 10ms bis 59ms)
+  unsigned long update_interval = 60 - g_ambientSpeed;
+
+  // 2. Prüfe auf langsame Modi und wende einen Multiplikator an
+  if (g_ambientMode == AMBIENT_BREATHING || g_ambientMode == AMBIENT_PULSE_WAVE) {
+    // Multipliziere das Intervall mit 5, um die Animation 5x langsamer zu machen.
+    // Du kannst diesen Wert (z.B. auf 10) erhöhen, um es noch langsamer zu machen!
+    update_interval *= 5;
+  }
+  
+  // 3. Führe das Frame-Update basierend auf dem finalen Intervall aus
+  if (millis() - g_lastAmbientUpdate > update_interval) {
+    g_lastAmbientUpdate = millis(); // Zeitstempel aktualisieren
+    g_ambientFrame++;               // Frame-Zähler für alle Animationen erhöhen
+  }
+  
+  // Wähle die passende Animation basierend auf dem aktuellen Modus
+  switch (g_ambientMode) {
+    
+    case AMBIENT_STATIC:
+      // Malt bei jedem Durchlauf einfach alle LEDs in der gewählten Farbe an.
+      for (int i = 0; i < EXTRA_LEDS; i++) {
+        ambient.setPixelColor(i, g_ambientColor);
+      }
+      ambient.show();
+      break;
+
+    case AMBIENT_BREATHING:
+      { // Klammer für lokale Variable
+        // Erzeuge eine Sinus-Welle für den "Atmungs"-Effekt
+        // g_ambientFrame steuert die Phase der Welle.
+        float brightness_factor = (sin(g_ambientFrame * 0.1) + 1.0) / 2.0; // Faktor zwischen 0.0 und 1.0
+        
+        uint8_t r = ((g_ambientColor >> 16) & 0xFF) * brightness_factor;
+        uint8_t g = ((g_ambientColor >> 8) & 0xFF) * brightness_factor;
+        uint8_t b = (g_ambientColor & 0xFF) * brightness_factor;
+
+        for (int i = 0; i < EXTRA_LEDS; i++) {
+          ambient.setPixelColor(i, ambient.Color(r, g, b));
+        }
+        ambient.show();
+      }
+      break;
+
+    case AMBIENT_RAINBOW_CHASE:
+      // Ein schöner Regenbogen, der im Kreis läuft.
+      // g_ambientFrame steuert die Position des Regenbogens.
+      for(uint16_t i=0; i < EXTRA_LEDS; i++) {
+        uint32_t color = Wheel(((i * 256 / EXTRA_LEDS) + g_ambientFrame) & 255);
+        ambient.setPixelColor(i, color);
+      }
+      ambient.show();
+      break;
+
+    case AMBIENT_PULSE_WAVE:
+      { // Klammer für lokale Variablen
+        // Erzeugt eine laufende Welle mit der vom Benutzer gewählten Farbe.
+        // Die Helligkeit jedes Pixels wird durch eine Sinus-Welle gesteuert.
+        for (int i = 0; i < EXTRA_LEDS; i++) {
+          // Die Sinus-Funktion erzeugt einen Wert zwischen -1.0 und 1.0.
+          // Wir mappen diesen auf einen Helligkeitsfaktor von 0.0 bis 1.0.
+          // 'i * 0.5' steuert die Breite der Welle.
+          // 'g_ambientFrame * 0.1' steuert die Geschwindigkeit, mit der die Welle läuft.
+          float brightness_factor = (sin( (i * 0.5f) + (g_ambientFrame * 0.1f) ) + 1.0) / 2.0;
+          
+          uint8_t r = ((g_ambientColor >> 16) & 0xFF) * brightness_factor;
+          uint8_t g = ((g_ambientColor >> 8) & 0xFF) * brightness_factor;
+          uint8_t b = (g_ambientColor & 0xFF) * brightness_factor;
+          
+          ambient.setPixelColor(i, ambient.Color(r, g, b));
+        }
+        ambient.show();
+      }
+      break;
+
+    case AMBIENT_GLITTER:
+      {
+        // 1. Lasse alle vorhandenen Pixel langsam ausblenden (Fading)
+        for (int i = 0; i < EXTRA_LEDS; i++) {
+          uint32_t current_color = ambient.getPixelColor(i);
+          // Reduziere die Helligkeit jedes Farbkanals um einen Faktor (z.B. auf 85%)
+          uint8_t r = ((current_color >> 16) & 0xFF) * 0.85f;
+          uint8_t g = ((current_color >> 8) & 0xFF) * 0.85f;
+          uint8_t b = (current_color & 0xFF) * 0.85f;
+          ambient.setPixelColor(i, ambient.Color(r, g, b));
+        }
+
+        // 2. Füge mit einer gewissen Wahrscheinlichkeit neue, helle Glitzer-Pixel hinzu
+        // Eine 10%ige Chance pro Animations-Frame erzeugt ein schönes, zufälliges Glitzern.
+        if (random(100) < 10) {
+          int pos = random(EXTRA_LEDS); // Wähle eine zufällige Position
+          // Setze den Pixel auf ein helles Weiß für den "Glitzer"-Effekt.
+          // Alternativ könntest du hier auch g_ambientColor verwenden.
+          ambient.setPixelColor(pos, ambient.Color(255, 255, 255));
+        }
+        
+        ambient.show();
+      }
+      break;
+
+    case AMBIENT_OFF:
+    default:
+      // Schalte alle LEDs aus.
+      ambient.clear();
+      ambient.show();
+      break;
+  }
+}
+
+
+
+
 // ----------------------------------------------------------------------------------
 //                                        OTHER FUNCTIONS
 // ----------------------------------------------------------------------------------
@@ -832,12 +868,10 @@ void updateStateBehavior(uint8_t state){
         showStringOnClock(timeAsString, maincolor_clock);
         updateLEDweekdays();    //Update Weekday for standard wordclock mode
         drawMinuteIndicator(minutes, maincolor_clock);
-        //if (!ambientLightStatus){
-          ambientLightStatus = true;
-          AmbientLight1();
-        //
+        updateAmbientLight();
+        //AmbientLight1();
         
-          // Beispiel: aktuell eine Animation laufen lassen
+        // Beispiel: aktuell eine Animation laufen lassen
         //AmbientAnimation1();
         // AmbientAnimation2();
         // AmbientAnimation3();
@@ -847,7 +881,6 @@ void updateStateBehavior(uint8_t state){
     // state diclock
     case st_diclock:
       {
-        ambientLightStatus = false;
         ambient.clear();
         ambient.show();
         int hours = ntp.getHours24();
@@ -1208,179 +1241,203 @@ void handleCommand() {
     logger.logString(log_str);
   }
   
-  if (server.argName(0) == "led") // the parameter which was sent to this server is led color
-  {
-    String colorstr = server.arg(0) + "-";
-    String redstr = split(colorstr, '-', 0);
-    String greenstr= split(colorstr, '-', 1);
-    String bluestr = split(colorstr, '-', 2);
-    logger.logString(colorstr);
-    logger.logString("r: " + String(redstr.toInt()));
-    logger.logString("g: " + String(greenstr.toInt()));
-    logger.logString("b: " + String(bluestr.toInt()));
-    // set new main color
-    setMainColor(redstr.toInt(), greenstr.toInt(), bluestr.toInt());
-  }
-  else if (server.argName(0) == "mode") // the parameter which was sent to this server is mode change
-  {
-    String modestr = server.arg(0);
-    logger.logString("Mode change via Webserver to: " + modestr);
-    // set current mode/state accordant sent mode
-    if(modestr == "clock"){
-      stateChange(st_clock, true);
+  //if (server.args() > 0)  {
+    if (server.argName(0) == "led") // the parameter which was sent to this server is led color
+    {
+      String colorstr = server.arg(0) + "-";
+      String redstr = split(colorstr, '-', 0);
+      String greenstr= split(colorstr, '-', 1);
+      String bluestr = split(colorstr, '-', 2);
+      logger.logString(colorstr);
+      logger.logString("r: " + String(redstr.toInt()));
+      logger.logString("g: " + String(greenstr.toInt()));
+      logger.logString("b: " + String(bluestr.toInt()));
+      // set new main color
+      setMainColor(redstr.toInt(), greenstr.toInt(), bluestr.toInt());
     }
-    else if(modestr == "diclock"){
-      stateChange(st_diclock, true);
+    else if (server.argName(0) == "mode") // the parameter which was sent to this server is mode change
+    {
+      String modestr = server.arg(0);
+      logger.logString("Mode change via Webserver to: " + modestr);
+      // set current mode/state accordant sent mode
+      if(modestr == "clock"){
+        stateChange(st_clock, true);
+      }
+      else if(modestr == "diclock"){
+        stateChange(st_diclock, true);
+      }
+      else if(modestr == "spiral"){
+        stateChange(st_spiral, true);
+      }
+      else if(modestr == "tetris"){
+        stateChange(st_tetris, true);
+      }
+      else if(modestr == "snake"){
+        stateChange(st_snake, true);
+      }
+      else if(modestr == "pingpong"){
+        stateChange(st_pingpong, true);
+      }
     }
-    else if(modestr == "spiral"){
-      stateChange(st_spiral, true);
+    //Ambient Light
+    else if (server.argName(0) == "ambient_mode")
+    {
+      g_ambientMode = (AmbientMode)server.arg(0).toInt();
+      g_ambientFrame = 0; 
     }
-    else if(modestr == "tetris"){
-      stateChange(st_tetris, true);
+    else if (server.argName(0) == "ambient_speed")
+    {
+      g_ambientSpeed = server.arg(0).toInt();
     }
-    else if(modestr == "snake"){
-      stateChange(st_snake, true);
+    else if (server.argName(0) == "ambient_color")
+    {
+      // Farbe kommt als Hex-String an, z.B. "ff00aa"
+      String hex_color_string = server.arg(0);
+      // Konvertiert den Hex-String in eine 32-bit Zahl
+      long number = (long) strtol( &hex_color_string[0], NULL, 16);
+      g_ambientColor = number;
     }
-    else if(modestr == "pingpong"){
-      stateChange(st_pingpong, true);
-    } 
-  }
-  else if(server.argName(0) == "ledoff"){
-    String modestr = server.arg(0);
-    logger.logString("LED off change via Webserver to: " + modestr);
-    if(modestr == "1") ledOff = true;
-    else ledOff = false;
-  }
-  else if(server.argName(0) == "nightmodeactivated"){
-    String modestr = server.arg(0);
-    logger.logString("nightModeActivated change via Webserver to: " + modestr);
-    if(modestr == "1") nightModeActivated = true;
-    else nightModeActivated = false;
-    EEPROM.write(ADR_NM_ACTIVATED, nightModeActivated);
-    EEPROM.commit();
-    checkNightmode();
-  }
-  else if(server.argName(0) == "setting"){
-    String timestr = server.arg(0) + "-";
-    logger.logString("Nightmode setting change via Webserver to: " + timestr);
-    nightModeStartHour = split(timestr, '-', 0).toInt();
-    nightModeStartMin = split(timestr, '-', 1).toInt();
-    nightModeEndHour = split(timestr, '-', 2).toInt();
-    nightModeEndMin = split(timestr, '-', 3).toInt();
-    brightness = split(timestr, '-', 4).toInt();
-    dynColorShiftSpeed = split(timestr, '-', 5).toInt();
-    if(nightModeStartHour < 0 || nightModeStartHour > 23) nightModeStartHour = 22;
-    if(nightModeStartMin < 0 || nightModeStartMin > 59) nightModeStartMin = 0;
-    if(nightModeEndHour < 0 || nightModeEndHour > 23) nightModeEndHour = 7;
-    if(nightModeEndMin < 0 || nightModeEndMin > 59) nightModeEndMin = 0;
-    if(brightness < 10) brightness = 10;
-    if(dynColorShiftSpeed == 0) dynColorShiftSpeed = 1;
-    EEPROM.write(ADR_NM_START_H, nightModeStartHour);
-    EEPROM.write(ADR_NM_START_M, nightModeStartMin);
-    EEPROM.write(ADR_NM_END_H, nightModeEndHour);
-    EEPROM.write(ADR_NM_END_M, nightModeEndMin);
-    EEPROM.write(ADR_BRIGHTNESS, brightness);
-    EEPROM.write(ADR_COLSHIFTSPEED, dynColorShiftSpeed);
-    EEPROM.commit();
-    logger.logString("Nightmode starts at: " + String(nightModeStartHour) + ":" + String(nightModeStartMin));
-    logger.logString("Nightmode ends at: " + String(nightModeEndHour) + ":" + String(nightModeEndMin));
-    logger.logString("Brightness: " + String(brightness));
-    logger.logString("ColorShiftSpeed: " + String(dynColorShiftSpeed));
-    ledmatrix.setBrightness(brightness);
-    lastNightmodeCheck = millis()  - PERIOD_NIGHTMODECHECK;
-  }
-  else if (server.argName(0) == "resetwifi"){
-    wifiManager.resetSettings();
-    // run LED test.
-    for(int r = 0; r < HEIGHT; r++){
-      for(int c = 0; c < WIDTH; c++){
-        matrix.fillScreen(0);
-        matrix.drawPixel(c, r, LEDMatrix::color24to16bit(colors24bit[2]));
-        matrix.show();
-        delay(10); 
-        }
+    else if (server.argName(0) == "ambient_brightness")
+    {
+      g_ambientBrightness = server.arg(0).toInt();
     }
-    
-    // clear Matrix
-    matrix.fillScreen(0);
-    matrix.show();
-    delay(200);
-  }
-  else if(server.argName(0) == "stateautochange"){
-    String modestr = server.arg(0);
-    logger.logString("stateAutoChange change via Webserver to: " + modestr);
-    if(modestr == "1") stateAutoChange = true;
-    else stateAutoChange = false;
-  }
-  else if(server.argName(0) == "tetris"){
-    String cmdstr = server.arg(0);
-    logger.logString("Tetris cmd via Webserver to: " + cmdstr);
-    if(cmdstr == "up"){
-      mytetris.ctrlUp();
+    else if(server.argName(0) == "ledoff"){
+      String modestr = server.arg(0);
+      logger.logString("LED off change via Webserver to: " + modestr);
+      if(modestr == "1") ledOff = true;
+      else ledOff = false;
     }
-    else if(cmdstr == "left"){
-      mytetris.ctrlLeft();
+    else if(server.argName(0) == "nightmodeactivated"){
+      String modestr = server.arg(0);
+      logger.logString("nightModeActivated change via Webserver to: " + modestr);
+      if(modestr == "1") nightModeActivated = true;
+      else nightModeActivated = false;
+      EEPROM.write(ADR_NM_ACTIVATED, nightModeActivated);
+      EEPROM.commit();
+      checkNightmode();
     }
-    else if(cmdstr == "right"){
-      mytetris.ctrlRight();
+    else if(server.argName(0) == "setting"){
+      String timestr = server.arg(0) + "-";
+      logger.logString("Nightmode setting change via Webserver to: " + timestr);
+      nightModeStartHour = split(timestr, '-', 0).toInt();
+      nightModeStartMin = split(timestr, '-', 1).toInt();
+      nightModeEndHour = split(timestr, '-', 2).toInt();
+      nightModeEndMin = split(timestr, '-', 3).toInt();
+      brightness = split(timestr, '-', 4).toInt();
+      dynColorShiftSpeed = split(timestr, '-', 5).toInt();
+      if(nightModeStartHour < 0 || nightModeStartHour > 23) nightModeStartHour = 22;
+      if(nightModeStartMin < 0 || nightModeStartMin > 59) nightModeStartMin = 0;
+      if(nightModeEndHour < 0 || nightModeEndHour > 23) nightModeEndHour = 7;
+      if(nightModeEndMin < 0 || nightModeEndMin > 59) nightModeEndMin = 0;
+      if(brightness < 10) brightness = 10;
+      if(dynColorShiftSpeed == 0) dynColorShiftSpeed = 1;
+      EEPROM.write(ADR_NM_START_H, nightModeStartHour);
+      EEPROM.write(ADR_NM_START_M, nightModeStartMin);
+      EEPROM.write(ADR_NM_END_H, nightModeEndHour);
+      EEPROM.write(ADR_NM_END_M, nightModeEndMin);
+      EEPROM.write(ADR_BRIGHTNESS, brightness);
+      EEPROM.write(ADR_COLSHIFTSPEED, dynColorShiftSpeed);
+      EEPROM.commit();
+      logger.logString("Nightmode starts at: " + String(nightModeStartHour) + ":" + String(nightModeStartMin));
+      logger.logString("Nightmode ends at: " + String(nightModeEndHour) + ":" + String(nightModeEndMin));
+      logger.logString("Brightness: " + String(brightness));
+      logger.logString("ColorShiftSpeed: " + String(dynColorShiftSpeed));
+      ledmatrix.setBrightness(brightness);
+      lastNightmodeCheck = millis()  - PERIOD_NIGHTMODECHECK;
     }
-    else if(cmdstr == "down"){
-      mytetris.ctrlDown();
+    else if (server.argName(0) == "resetwifi"){
+      wifiManager.resetSettings();
+      // run LED test.
+      for(int r = 0; r < HEIGHT; r++){
+        for(int c = 0; c < WIDTH; c++){
+          matrix.fillScreen(0);
+          matrix.drawPixel(c, r, LEDMatrix::color24to16bit(colors24bit[2]));
+          matrix.show();
+          delay(10); 
+          }
+      }
+      
+      // clear Matrix
+      matrix.fillScreen(0);
+      matrix.show();
+      delay(200);
     }
-    else if(cmdstr == "play"){
-      mytetris.ctrlStart();
+    else if(server.argName(0) == "stateautochange"){
+      String modestr = server.arg(0);
+      logger.logString("stateAutoChange change via Webserver to: " + modestr);
+      if(modestr == "1") stateAutoChange = true;
+      else stateAutoChange = false;
     }
-    else if(cmdstr == "pause"){
-      mytetris.ctrlPlayPause();
+    else if(server.argName(0) == "tetris"){
+      String cmdstr = server.arg(0);
+      logger.logString("Tetris cmd via Webserver to: " + cmdstr);
+      if(cmdstr == "up"){
+        mytetris.ctrlUp();
+      }
+      else if(cmdstr == "left"){
+        mytetris.ctrlLeft();
+      }
+      else if(cmdstr == "right"){
+        mytetris.ctrlRight();
+      }
+      else if(cmdstr == "down"){
+        mytetris.ctrlDown();
+      }
+      else if(cmdstr == "play"){
+        mytetris.ctrlStart();
+      }
+      else if(cmdstr == "pause"){
+        mytetris.ctrlPlayPause();
+      }
     }
-  }
-  else if(server.argName(0) == "snake"){
-    String cmdstr = server.arg(0);
-    logger.logString("Snake cmd via Webserver to: " + cmdstr);
-    if(cmdstr == "up"){
-      mysnake.ctrlUp();
+    else if(server.argName(0) == "snake"){
+      String cmdstr = server.arg(0);
+      logger.logString("Snake cmd via Webserver to: " + cmdstr);
+      if(cmdstr == "up"){
+        mysnake.ctrlUp();
+      }
+      else if(cmdstr == "left"){
+        mysnake.ctrlLeft();
+      }
+      else if(cmdstr == "right"){
+        mysnake.ctrlRight();
+      }
+      else if(cmdstr == "down"){
+        mysnake.ctrlDown();
+      }
+      else if(cmdstr == "new"){
+        mysnake.initGame();
+      }
     }
-    else if(cmdstr == "left"){
-      mysnake.ctrlLeft();
+    else if(server.argName(0) == "pong"){
+      String cmdstr = server.arg(0);
+      logger.logString("Pong cmd via Webserver to: " + cmdstr);
+      if(cmdstr == "up"){
+        mypong.ctrlUp(1);
+      }
+      else if(cmdstr == "down"){
+        mypong.ctrlDown(1);
+      }
+      else if(cmdstr == "new"){
+        mypong.initGame(1);
+      }
     }
-    else if(cmdstr == "right"){
-      mysnake.ctrlRight();
+    else if(server.argName(0) == "reboot"){
+      logger.logString("Reboot via Webserver");
+      server.send(204, "text/plain", "No Content"); // this page doesn't send back content --> 204
+      delay(1000);
+      ESP.restart();
     }
-    else if(cmdstr == "down"){
-      mysnake.ctrlDown();
+    else if(server.argName(0) == "colorshift"){
+      Serial.println("ColorShift change via Webserver");
+      String str = server.arg(0);
+      if(str == "1") dynColorShiftActive = true;
+      else dynColorShiftActive = false;
+      EEPROM.write(ADR_COLSHIFTACTIVE, dynColorShiftActive);
+      EEPROM.commit();
     }
-    else if(cmdstr == "new"){
-      mysnake.initGame();
-    }
-  }
-  else if(server.argName(0) == "pong"){
-    String cmdstr = server.arg(0);
-    logger.logString("Pong cmd via Webserver to: " + cmdstr);
-    if(cmdstr == "up"){
-      mypong.ctrlUp(1);
-    }
-    else if(cmdstr == "down"){
-      mypong.ctrlDown(1);
-    }
-    else if(cmdstr == "new"){
-      mypong.initGame(1);
-    }
-  }
-  else if(server.argName(0) == "reboot"){
-    logger.logString("Reboot via Webserver");
     server.send(204, "text/plain", "No Content"); // this page doesn't send back content --> 204
-    delay(1000);
-    ESP.restart();
-  }
-  else if(server.argName(0) == "colorshift"){
-    Serial.println("ColorShift change via Webserver");
-    String str = server.arg(0);
-    if(str == "1") dynColorShiftActive = true;
-    else dynColorShiftActive = false;
-    EEPROM.write(ADR_COLSHIFTACTIVE, dynColorShiftActive);
-    EEPROM.commit();
-  }
-  server.send(204, "text/plain", "No Content"); // this page doesn't send back content --> 204
+  //}
 }
 
 /**
@@ -1442,6 +1499,18 @@ void handleDataRequest() {
       message += "\"colorshift\":\"" + String(dynColorShiftActive) + "\"";
       message += ",";
       message += "\"colorshiftspeed\":\"" + String(dynColorShiftSpeed) + "\"";
+      //Ambient-Light Zustand zum JSON hinzufügen
+      message += ",";
+      message += "\"ambient_mode\":\"" + String(g_ambientMode) + "\"";
+      message += ",";
+      message += "\"ambient_speed\":\"" + String(g_ambientSpeed) + "\"";
+      message += ",";
+      message += ",";
+      message += "\"ambient_brightness\":\"" + String(g_ambientBrightness) + "\"";
+      // Wir wandeln die Farbe zurück in einen Hex-String mit führenden Nullen
+      char hex_string[7];
+      sprintf(hex_string, "%06x", g_ambientColor);
+      message += "\"ambient_color\":\"" + String(hex_string) + "\"";
     }
     message += "}";
     server.send(200, "application/json", message);

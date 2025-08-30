@@ -466,6 +466,47 @@
 				<div class="buttonClass wide-button-bottom" onclick="sendCommand('./cmd?pong=new')" unselectable="on"><img src = "./icons/refresh.svg" style="height:30px"/></div>
 			</div>
 		</div>
+
+		    <!-- Kompletter Steuerungsblock für das Ambient Light -->
+		<div class="verticalline"></div>
+		<div class="headline">
+			AMBIENT LIGHT
+		</div>
+
+		    <!-- Slider für die Helligkeit -->
+    	<div class="number-container">
+        	<label for="ambientbrightness_slider">Brightness:</label>
+        	<input type="range" id="ambientbrightness_slider" name="ambientbrightness" min="0" max="255"
+               onchange="sendCommand('./cmd?ambient_brightness=' + this.value)">
+    	</div>
+
+		<!-- Dropdown für den Animations-Modus -->
+		<div class="checkbox-container">
+			<label for="ambient_mode_select" style="align-self: flex-start">Animation</label>
+			<select name="ambient_mode" id="ambient_mode_select" onchange="sendCommand('./cmd?ambient_mode=' + this.value)">
+				<option value="0">Off</option>
+				<option value="1">Static Color</option>
+				<option value="2">Breathing</option>
+				<option value="3">Rainbow Chase</option>
+				<option value="4">Pulse Wave</option>
+				<option value="5">Glitter</option>
+			</select>
+		</div>
+
+		<!-- Slider für die Geschwindigkeit -->
+		<div class="number-container">
+			<label for="ambientspeed">Animation Speed:</label>
+			<input type="range" id="ambientspeed" name="ambientspeed" min="1" max="50"
+				onchange="sendCommand('./cmd?ambient_speed=' + this.value)">
+		</div>
+
+		<!-- Farbwähler -->
+		<div class="checkbox-container">
+			<label for="ambientcolor" style="align-self: flex-start">Color</label>
+			<input type="color" id="ambientcolor" name="ambientcolor"
+				onchange="sendCommand('./cmd?ambient_color=' + this.value.substring(1))">
+		</div>
+		<!-- NEU ENDE -->
 		
 
 		<script>
@@ -563,11 +604,26 @@
 					document.getElementById("brightness").value = parseInt(myVar.brightness);
 					document.getElementById("colorshiftspeed").value = parseInt(myVar.colorshiftspeed);
 
-					// NEU START: Wert für den Rainbow-Slider setzen
+					// Wert für den Rainbow-Slider setzen
 					if(myVar.rainbowspeed) {
 						document.getElementById("rainbowspeed").value = parseInt(myVar.rainbowspeed);
 					}
-					// NEU ENDE
+					// Werte für die Ambient-Controls setzen
+					if(myVar.ambient_mode) {
+						document.getElementById("ambient_mode_select").value = myVar.ambient_mode;
+					}
+					// Wert für den Ambient-Helligkeits-Slider setzen
+          			if(myVar.ambient_brightness) {
+						document.getElementById("ambientbrightness_slider").value = parseInt(myVar.ambient_brightness);
+					}
+					if(myVar.ambient_speed) {
+						document.getElementById("ambientspeed").value = parseInt(myVar.ambient_speed);
+					}
+					if(myVar.ambient_color) {
+						// Der ESP sendet "rrggbb", der Farbwähler braucht aber "#rrggbb"
+						document.getElementById("ambientcolor").value = "#" + myVar.ambient_color;
+					}
+
 
 
 					updateDisplay(parseInt(myVar.modeid));
@@ -627,7 +683,6 @@
 							document.getElementById("rainbowcontainer").classList.remove("hidden"); // unseren Slider anzeigen
 							document.getElementById("colorshiftcontainer").classList.add("hidden"); // ColorShift ausblenden
 							break;
-						// NEU ENDE
 
 					}
 				}
