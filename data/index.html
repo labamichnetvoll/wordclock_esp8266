@@ -467,17 +467,12 @@
 			</div>
 		</div>
 
-<<<<<<< HEAD
 		    <!-- Kompletter Steuerungsblock für das Ambient Light -->
-=======
-		    <!-- NEU START: Kompletter Steuerungsblock für das Ambient Light -->
->>>>>>> 012ccc23244b0ee5a260851487264d5c3ec3bf5d
 		<div class="verticalline"></div>
 		<div class="headline">
 			AMBIENT LIGHT
 		</div>
 
-<<<<<<< HEAD
 		    <!-- Slider für die Helligkeit -->
     	<div class="number-container">
         	<label for="ambientbrightness_slider">Brightness:</label>
@@ -485,8 +480,6 @@
                onchange="sendCommand('./cmd?ambient_brightness=' + this.value)">
     	</div>
 
-=======
->>>>>>> 012ccc23244b0ee5a260851487264d5c3ec3bf5d
 		<!-- Dropdown für den Animations-Modus -->
 		<div class="checkbox-container">
 			<label for="ambient_mode_select" style="align-self: flex-start">Animation</label>
@@ -513,7 +506,6 @@
 			<input type="color" id="ambientcolor" name="ambientcolor"
 				onchange="sendCommand('./cmd?ambient_color=' + this.value.substring(1))">
 		</div>
-		<!-- NEU ENDE -->
 		
 
 		<script>
@@ -615,7 +607,6 @@
 					if(myVar.rainbowspeed) {
 						document.getElementById("rainbowspeed").value = parseInt(myVar.rainbowspeed);
 					}
-<<<<<<< HEAD
 					// Werte für die Ambient-Controls setzen
 					if(myVar.ambient_mode) {
 						document.getElementById("ambient_mode_select").value = myVar.ambient_mode;
@@ -624,13 +615,6 @@
           			if(myVar.ambient_brightness) {
 						document.getElementById("ambientbrightness_slider").value = parseInt(myVar.ambient_brightness);
 					}
-=======
-					// NEU ENDE
-					// NEU START: Werte für die Ambient-Controls setzen
-					if(myVar.ambient_mode) {
-						document.getElementById("ambient_mode_select").value = myVar.ambient_mode;
-					}
->>>>>>> 012ccc23244b0ee5a260851487264d5c3ec3bf5d
 					if(myVar.ambient_speed) {
 						document.getElementById("ambientspeed").value = parseInt(myVar.ambient_speed);
 					}
@@ -638,11 +622,6 @@
 						// Der ESP sendet "rrggbb", der Farbwähler braucht aber "#rrggbb"
 						document.getElementById("ambientcolor").value = "#" + myVar.ambient_color;
 					}
-<<<<<<< HEAD
-
-=======
-					// NEU ENDE
->>>>>>> 012ccc23244b0ee5a260851487264d5c3ec3bf5d
 
 
 					updateDisplay(parseInt(myVar.modeid));
