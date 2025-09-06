@@ -2,6 +2,7 @@
  * Wordclock 2.0 - Wordclock with ESP8266 and NTP time update
  * 
  * created by techniccontroller 04.12.2021
+ * modified by labamichnetvoll 2025
  * 
  * components:
  * - ESP8266
@@ -82,6 +83,8 @@
 #define PERIOD_TIMEVISUUPDATE 1000
 #define PERIOD_MATRIXUPDATE 100
 #define PERIOD_NIGHTMODECHECK 20000
+#define PERIOD_AMBIENTUPDATE 50           //Default Ambient Light Update Period (ms)
+
 
 #define SHORTPRESS 100
 #define LONGPRESS 2000
@@ -189,6 +192,7 @@ bool sprialDir = false;
 // timestamp variables
 long lastheartbeat = millis();      // time of last heartbeat sending
 long lastStep = millis();           // time of last animation step
+long lastStepAmbient = millis();    // time of last ambient animation step
 long lastLEDdirect = -TIMEOUT_LEDDIRECT; // time of last direct LED command (=> fall back to normal mode after timeout)
 long lastStateChange = millis();    // time of last state change
 long lastNTPUpdate = millis() - (PERIOD_NTPUPDATE-3000);  // time of last NTP update
@@ -196,6 +200,7 @@ long lastAnimationStep = millis();  // time of last Matrix update
 long lastNightmodeCheck = millis()  - (PERIOD_NIGHTMODECHECK-3000); // time of last nightmode check
 long buttonPressStart = 0;          // time of push button press start 
 uint16_t behaviorUpdatePeriod = PERIOD_TIMEVISUUPDATE; // holdes the period in which the behavior should be updated
+uint16_t behaviorAmbientUpdatePeriod = PERIOD_AMBIENTUPDATE;   //holdes the period in which the ambient light should be updated
 
 // Create necessary global objects
 UDPLogger logger;
@@ -230,22 +235,15 @@ int watchdogCounter = 30;
 
 bool waitForTimeAfterReboot = false; // wait for time update after reboot
 
-/* ----------------------------------------------------------------------------------
- *                          function prototyp Labamichnetvoll
- *  ----------------------------------------------------------------------------------
-*/
+// ----------------------------------------------------------------------------------
+//                          function prototyp Labamichnetvoll
+//  ----------------------------------------------------------------------------------
 
-/*
- * Update LEDMatrix based on Weekday in wordclock mode
-*/
+
 void updateLEDweekdays();   
-
 void updateAmbientLight();
-void AmbientLight1();
-void AmbientAnimation1();
-void AmbientAnimation2();
-void AmbientAnimation3();
-void AmbientAnimation4();
+
+
 // ----------------------------------------------------------------------------------
 //                                        SETUP
 // ----------------------------------------------------------------------------------
@@ -451,7 +449,6 @@ void loop() {
   // handle Webserver
   server.handleClient();
 
-
   // send regularly heartbeat messages via UDP multicast
   if(millis() - lastheartbeat > PERIOD_HEARTBEAT){
     logger.logString("Heartbeat, state: " + stateNames[currentState] + ", FreeHeap: " + ESP.getFreeHeap() + ", HeapFrag: " + ESP.getHeapFragmentation() + ", MaxFreeBlock: " + ESP.getMaxFreeBlockSize() + "\n");
@@ -475,15 +472,21 @@ void loop() {
   // Turn off LEDs if ledOff is true or nightmode is active
   if((ledOff || nightMode) && !waitForTimeAfterReboot){
     ledmatrix.gridFlush();
+    ambient.clear();    //deactivate AmbientLight
+    ambient.show();
   }
-  
-  //TEST
-  handleOTA();
 
   // periodically write colors to matrix
   if(millis() - lastAnimationStep > PERIOD_MATRIXUPDATE && !waitForTimeAfterReboot && (millis() - lastLEDdirect > TIMEOUT_LEDDIRECT)){
     ledmatrix.drawOnMatrixSmooth(filterFactor);
     lastAnimationStep = millis();
+  }
+
+  //periodically update ambientlight
+  if (!nightMode && !ledOff && (millis() - lastStepAmbient > behaviorAmbientUpdatePeriod)) {
+    behaviorAmbientUpdatePeriod = PERIOD_TIMEVISUUPDATE / g_ambientSpeed;
+    updateAmbientLight();
+    lastStepAmbient = millis();
   }
 
   // handle button press
@@ -498,8 +501,6 @@ void loop() {
     lastStateChange = millis();
   }
 
-  //TEST
-  handleOTA();
 
   // NTP time update
   if(millis() - lastNTPUpdate > PERIOD_NTPUPDATE){
@@ -564,6 +565,11 @@ void loop() {
  *  ----------------------------------------------------------------------------------
 */
 
+
+/**
+ * @brief adds two pixels on frontpanel dependend on current weekday
+ * TODO: remove hardcoded positions, add search function?
+ */
 void updateLEDweekdays(){
   unsigned int weekday = ntp.getDayOfWeek();    //return weekday as unsigned int, 1:Monday - 7: Sunday 
 
@@ -601,99 +607,6 @@ void updateLEDweekdays(){
 
 }
 
-//
-//  AmbientLight function 1 
-//  static Light
-
-void AmbientLight1()  {
-  static int pos = 0;
-  ambient.setPixelColor(pos, ambient.Color(0,0,150));
-  pos++;
-  if (pos == EXTRA_LEDS)  pos = 0;
-  ambient.show();
-}
-
-// -------------------- ANIMATION 1 --------------------
-// Laufring mit Schweif
-void AmbientAnimation1()  {
-  // Lokale Variablen für die Animation
-  int pos = 0;           // aktuelle Position
-  int delayTime = 50;    // Geschwindigkeit (ms)
-  int trailLength = 5;   // Länge des Schweifs
-
-  ambient.clear();
-
-  // Hauptpixel (volles Rot)
-  ambient.setPixelColor(pos, ambient.Color(255, 0, 0));
-
-  // Schweif berechnen
-  for (int i = 1; i <= trailLength; i++) {
-    int index = (pos - i + EXTRA_LEDS) % EXTRA_LEDS; // rückwärts mit Wrap
-    int fade = 255 - (i * (255 / (trailLength + 1))); // Helligkeit abnehmen
-    ambient.setPixelColor(index, ambient.Color(fade, 0, 0));
-  }
-
-  ambient.show();
-
-  // Position weiterschieben
-  pos++;
-  if (pos >= EXTRA_LEDS) {
-    pos = 0;
-  }
-
-  delay(delayTime);
-}
-
-
-// -------------------- ANIMATION 2 --------------------
-// Regenbogenlauflicht
-void AmbientAnimation2() {
-  int pos = 0; 
-  for (int i = 0; i < EXTRA_LEDS; i++) {
-    int colorIndex = (i * 256 / EXTRA_LEDS + pos) % 256;
-    ambient.setPixelColor(i, Wheel(colorIndex));
-  }
-  ambient.show();
-  pos = (pos + 1) % 256;
-  delay(30);
-}
-
-// -------------------- ANIMATION 3 --------------------
-// Laufendes Puls-Wellenlicht (Helligkeit hoch/runter)
-void AmbientAnimation3() {
-  int pos = 0; 
-  ambient.clear();
-  for (int i = 0; i < EXTRA_LEDS; i++) {
-    int wave = (int)(127.5 * (1 + sin((pos + i) * 2 * 3.14159 / EXTRA_LEDS)));
-    ambient.setPixelColor(i, ambient.Color(wave, 0, 255-wave));
-  }
-  ambient.show();
-  pos = (pos + 1) % EXTRA_LEDS;
-  delay(50);
-}
-
-// -------------------- ANIMATION 4 --------------------
-// Zufällige Glitzer-Blitze
-void AmbientAnimation4() {
-  // leichtes Fade aller LEDs
-  for (int i = 0; i < EXTRA_LEDS; i++) {
-    uint32_t c = ambient.getPixelColor(i);
-    uint8_t r = ((c >> 16) & 0xFF) * 0.8;
-    uint8_t g = ((c >> 8) & 0xFF) * 0.8;
-    uint8_t b = (c & 0xFF) * 0.8;
-    ambient.setPixelColor(i, ambient.Color(r, g, b));
-  }
-
-  // zufällige Blitze
-  int sparkleCount = random(1, 4);
-  for (int j = 0; j < sparkleCount; j++) {
-    int i = random(0, EXTRA_LEDS);
-    ambient.setPixelColor(i, ambient.Color(255, 255, 255));
-  }
-
-  ambient.show();
-  delay(50);
-}
 
 // -------------------- HELPER --------------------
 // Farbwheel für Regenbogen
@@ -711,39 +624,36 @@ uint32_t Wheel(byte WheelPos) {
 }
 
 
-//AmbientLight
+
 /**
- * @brief Führt die aktuelle Animation für das Ambient-Licht aus.
- *        Wird kontinuierlich aus der Haupt-loop() aufgerufen.
- *        Arbeitet komplett nicht-blockierend mit millis().
+ * @brief Perform the current animation for the ambient light.
+ *        Is continuously called from the main loop().
+ *        --> immediate execution!
  */
 void updateAmbientLight() {
 
-  // Wendet die globale Helligkeit auf den gesamten Ambient-Streifen an.
-  // Dieser Befehl muss vor .show() aufgerufen werden.
   ambient.setBrightness(g_ambientBrightness);
 
-  // 1. Berechne das Basis-Intervall (wie bisher, 10ms bis 59ms)
+  // calculate update_interval (10ms bis 59ms)
   unsigned long update_interval = 60 - g_ambientSpeed;
 
-  // 2. Prüfe auf langsame Modi und wende einen Multiplikator an
-  if (g_ambientMode == AMBIENT_BREATHING || g_ambientMode == AMBIENT_PULSE_WAVE) {
-    // Multipliziere das Intervall mit 5, um die Animation 5x langsamer zu machen.
-    // Du kannst diesen Wert (z.B. auf 10) erhöhen, um es noch langsamer zu machen!
+  // modifier for "slow" modes
+  if (g_ambientMode == AMBIENT_BREATHING || g_ambientMode == AMBIENT_PULSE_WAVE || g_ambientMode == AMBIENT_GLITTER) {
+    // higher value --> slower speed
     update_interval *= 5;
   }
   
-  // 3. Führe das Frame-Update basierend auf dem finalen Intervall aus
+  // update frame-interval based on last one
   if (millis() - g_lastAmbientUpdate > update_interval) {
-    g_lastAmbientUpdate = millis(); // Zeitstempel aktualisieren
-    g_ambientFrame++;               // Frame-Zähler für alle Animationen erhöhen
+    g_lastAmbientUpdate = millis(); 
+    g_ambientFrame++;               
   }
   
-  // Wähle die passende Animation basierend auf dem aktuellen Modus
+  // Select the appropriate animation based on the current mode
   switch (g_ambientMode) {
     
+    //single color
     case AMBIENT_STATIC:
-      // Malt bei jedem Durchlauf einfach alle LEDs in der gewählten Farbe an.
       for (int i = 0; i < EXTRA_LEDS; i++) {
         ambient.setPixelColor(i, g_ambientColor);
       }
@@ -751,9 +661,7 @@ void updateAmbientLight() {
       break;
 
     case AMBIENT_BREATHING:
-      { // Klammer für lokale Variable
-        // Erzeuge eine Sinus-Welle für den "Atmungs"-Effekt
-        // g_ambientFrame steuert die Phase der Welle.
+      { // bracket for local variable
         float brightness_factor = (sin(g_ambientFrame * 0.1) + 1.0) / 2.0; // Faktor zwischen 0.0 und 1.0
         
         uint8_t r = ((g_ambientColor >> 16) & 0xFF) * brightness_factor;
@@ -768,8 +676,6 @@ void updateAmbientLight() {
       break;
 
     case AMBIENT_RAINBOW_CHASE:
-      // Ein schöner Regenbogen, der im Kreis läuft.
-      // g_ambientFrame steuert die Position des Regenbogens.
       for(uint16_t i=0; i < EXTRA_LEDS; i++) {
         uint32_t color = Wheel(((i * 256 / EXTRA_LEDS) + g_ambientFrame) & 255);
         ambient.setPixelColor(i, color);
@@ -778,14 +684,14 @@ void updateAmbientLight() {
       break;
 
     case AMBIENT_PULSE_WAVE:
-      { // Klammer für lokale Variablen
-        // Erzeugt eine laufende Welle mit der vom Benutzer gewählten Farbe.
-        // Die Helligkeit jedes Pixels wird durch eine Sinus-Welle gesteuert.
+      { // bracket for local variable
+        // Generates a continuous wave with the color chosen by the user
+        // brightness controlled by sin-wave
         for (int i = 0; i < EXTRA_LEDS; i++) {
-          // Die Sinus-Funktion erzeugt einen Wert zwischen -1.0 und 1.0.
-          // Wir mappen diesen auf einen Helligkeitsfaktor von 0.0 bis 1.0.
-          // 'i * 0.5' steuert die Breite der Welle.
-          // 'g_ambientFrame * 0.1' steuert die Geschwindigkeit, mit der die Welle läuft.
+          // value from sin() between -1.0 and 1.0.
+          // mapping to brightness_factor from 0.0 to 1.0.
+          // 'i * 0.5' controlling the width of the wave.
+          // 'g_ambientFrame * 0.1' controlling the speed
           float brightness_factor = (sin( (i * 0.5f) + (g_ambientFrame * 0.1f) ) + 1.0) / 2.0;
           
           uint8_t r = ((g_ambientColor >> 16) & 0xFF) * brightness_factor;
@@ -800,23 +706,22 @@ void updateAmbientLight() {
 
     case AMBIENT_GLITTER:
       {
-        // 1. Lasse alle vorhandenen Pixel langsam ausblenden (Fading)
+        // allow all existing pixels to fade out slowly
         for (int i = 0; i < EXTRA_LEDS; i++) {
           uint32_t current_color = ambient.getPixelColor(i);
-          // Reduziere die Helligkeit jedes Farbkanals um einen Faktor (z.B. auf 85%)
+          // reducing brightness of each color by 85% 
           uint8_t r = ((current_color >> 16) & 0xFF) * 0.85f;
           uint8_t g = ((current_color >> 8) & 0xFF) * 0.85f;
           uint8_t b = (current_color & 0xFF) * 0.85f;
           ambient.setPixelColor(i, ambient.Color(r, g, b));
         }
 
-        // 2. Füge mit einer gewissen Wahrscheinlichkeit neue, helle Glitzer-Pixel hinzu
-        // Eine 10%ige Chance pro Animations-Frame erzeugt ein schönes, zufälliges Glitzern.
+        // Add new, bright glitter pixels with a certain probability.
+        // A 10% chance per animation frame creates a nice, random glitter.
         if (random(100) < 10) {
-          int pos = random(EXTRA_LEDS); // Wähle eine zufällige Position
-          // Setze den Pixel auf ein helles Weiß für den "Glitzer"-Effekt.
-          // Alternativ könntest du hier auch g_ambientColor verwenden.
-          ambient.setPixelColor(pos, ambient.Color(255, 255, 255));
+          int pos = random(EXTRA_LEDS); // choose random Position
+          // Set the pixel to g_ambientColor for the "glitter" effect.
+          ambient.setPixelColor(pos, g_ambientColor);
         }
         
         ambient.show();
@@ -825,7 +730,7 @@ void updateAmbientLight() {
 
     case AMBIENT_OFF:
     default:
-      // Schalte alle LEDs aus.
+      // turn off all leds
       ambient.clear();
       ambient.show();
       break;
@@ -847,15 +752,16 @@ void updateStateBehavior(uint8_t state){
     // state clock
     case st_clock:
       {
-        if(dynColorShiftActive){
+        if(dynColorShiftActive) {
           dynColorShiftPhase = (dynColorShiftPhase + 1) % 256;
           ledmatrix.setDynamicColorShiftPhase(dynColorShiftPhase);
           filterFactor = 1.0; // no smoothing
           behaviorUpdatePeriod = PERIOD_TIMEVISUUPDATE / dynColorShiftSpeed;
-        } else {
+        } 
+        else {
           ledmatrix.setDynamicColorShiftPhase(-1);
           filterFactor = DEFAULT_SMOOTHING_FACTOR;
-          behaviorUpdatePeriod = PERIOD_TIMEVISUUPDATE;
+          behaviorUpdatePeriod = PERIOD_TIMEVISUUPDATE;       
         }
         uint8_t hours = ntp.getHours24();
         uint8_t minutes = ntp.getMinutes();
@@ -868,21 +774,11 @@ void updateStateBehavior(uint8_t state){
         showStringOnClock(timeAsString, maincolor_clock);
         updateLEDweekdays();    //Update Weekday for standard wordclock mode
         drawMinuteIndicator(minutes, maincolor_clock);
-        updateAmbientLight();
-        //AmbientLight1();
-        
-        // Beispiel: aktuell eine Animation laufen lassen
-        //AmbientAnimation1();
-        // AmbientAnimation2();
-        // AmbientAnimation3();
-        // AmbientAnimation4();
       }
       break;
     // state diclock
     case st_diclock:
       {
-        ambient.clear();
-        ambient.show();
         int hours = ntp.getHours24();
         int minutes = ntp.getMinutes();
         showDigitalClock(hours, minutes, maincolor_clock);
