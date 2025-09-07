@@ -40,7 +40,7 @@ void drawMinuteIndicator(uint8_t minutes, uint32_t color){
 
 /**
  * @brief Draw the given sentence to the word clock
- * 
+ *
  * @param message sentence to be displayed
  * @param color 24bit color value
  * @return int: 0 if successful, -1 if sentence not possible to display
@@ -92,7 +92,9 @@ int showStringOnClock(String message, uint32_t color){
 
 /**
  * @brief Converts the given time as sentence (String)
- * 
+ *  //change: Labamichnetvoll
+ *  // bayrische Aussprache angepasst
+ *
  * @param hours hours of the time value
  * @param minutes minutes of the time value
  * @return String time as sentence
@@ -118,7 +120,7 @@ String timeToString(uint8_t hours,uint8_t minutes){
   }
   else if(minutes >= 20 && minutes < 25)
   {
-    message += "ZEHN VOR HALB "; 
+    message += "ZWANZIG NACH "; 
   }
   else if(minutes >= 25 && minutes < 30)
   {
@@ -134,7 +136,7 @@ String timeToString(uint8_t hours,uint8_t minutes){
   }
   else if(minutes >= 40 && minutes < 45)
   {
-    message += "ZEHN NACH HALB ";
+    message += "ZWANZIG VOR ";
   }
   else if(minutes >= 45 && minutes < 50)
   {
@@ -154,7 +156,7 @@ String timeToString(uint8_t hours,uint8_t minutes){
   {
       hours -= 12;
   }
-  if(minutes >= 20)
+  if(minutes >= 25)    //change from >= 20 to >= 25 for bayrische Aussprache
   {
       hours++;
   }
