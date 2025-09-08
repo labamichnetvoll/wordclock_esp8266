@@ -49,23 +49,29 @@
 //                                        CONSTANTS
 // ----------------------------------------------------------------------------------
 
-#define EEPROM_VERSION_CODE   2  // Change this value when defaults settings change
+#define EEPROM_VERSION_CODE   3  // Change this value when defaults settings change
 
 // EEPROM address map (all uint8_t, 1 byte each)
-#define EEPROM_SIZE          13  // size of EEPROM to save persistent variables
-#define ADR_EEPROM_VERSION    0  // uint8_t
-#define ADR_NM_START_H        1  // uint8_t
-#define ADR_NM_END_H          2  // uint8_t
-#define ADR_NM_START_M        3  // uint8_t
-#define ADR_NM_END_M          4  // uint8_t
-#define ADR_BRIGHTNESS        5  // uint8_t
-#define ADR_MC_RED            6  // uint8_t
-#define ADR_MC_GREEN          7  // uint8_t
-#define ADR_MC_BLUE           8  // uint8_t
-#define ADR_STATE             9  // uint8_t
-#define ADR_NM_ACTIVATED     10  // uint8_t
-#define ADR_COLSHIFTSPEED    11  // uint8_t
-#define ADR_COLSHIFTACTIVE   12  // uint8_t
+#define EEPROM_SIZE             19  // size of EEPROM to save persistent variables
+#define ADR_EEPROM_VERSION       0  // uint8_t
+#define ADR_NM_START_H           1  // uint8_t
+#define ADR_NM_END_H             2  // uint8_t
+#define ADR_NM_START_M           3  // uint8_t
+#define ADR_NM_END_M             4  // uint8_t
+#define ADR_BRIGHTNESS           5  // uint8_t
+#define ADR_MC_RED               6  // uint8_t
+#define ADR_MC_GREEN             7  // uint8_t
+#define ADR_MC_BLUE              8  // uint8_t
+#define ADR_STATE                9  // uint8_t
+#define ADR_NM_ACTIVATED        10  // uint8_t
+#define ADR_COLSHIFTSPEED       11  // uint8_t
+#define ADR_COLSHIFTACTIVE      12  // uint8_t
+#define ADR_AMBIENT_MODE        13  // uint8_t
+#define ADR_AMBIENT_BRIGHTNESS  14  // uint8_t
+#define ADR_AMBIENT_SPEED       15  // uint8_t
+#define ADR_AMBIENT_RED         16  // uint8_t
+#define ADR_AMBIENT_GREEN       17  // uint8_t
+#define ADR_AMBIENT_BLUE        18  // uint8_t
 
 // DEFAULT SETTINGS (if one changes this, also increment the EEPROM_VERSION_CODE, to ensure that the EEPROM is updated with the new defaults)
 #define DEFAULT_NM_START_HOUR 22 // default start hour of nightmode (0-23)
@@ -80,7 +86,14 @@
 #define DEFAULT_COLSHIFT_SPEED 1 // needs to be between larger than 0 (1 = slowest, 255 = fastest)
 #define DEFAULT_COLSHIFT_ACTIVE 0 // if dynamic color shift is active (0 = deactivated, 1 = activated)
 
-#define NEOPIXELPIN 14       // pin to which the NeoPixels are attached
+#define DEFAULT_AMBIENT_MODE 1        // default ambient mode --> static color
+#define DEFAULT_AMBIENT_BRIGHTNESS 40 // default ambient brightness (uint8_t) 
+#define DEFAULT_AMBIENT_SPEED 5       // default ambient speed (0-50)
+#define DEFAULT_AMBIENT_RED 46        // default ambient color red value
+#define DEFAULT_AMBIENT_GREEN 6       // default ambient color green value
+#define DEFAULT_AMBIENT_BLUE 61       // default ambient color blue value
+
+#define NEOPIXELPIN 14      // pin to which the NeoPixels are attached
 #define BUTTONPIN 12        // pin to which the button is attached
 #define AMBIENT_PIN D8      // pin to which to ambient light is attached
 #define LEFT 1
@@ -99,13 +112,13 @@
 #define PERIOD_TIMEVISUUPDATE 1000
 #define PERIOD_MATRIXUPDATE 100
 #define PERIOD_NIGHTMODECHECK 20000
-#define PERIOD_AMBIENTUPDATE 50           //Default Ambient Light Update Period (ms)
+#define PERIOD_AMBIENTUPDATE 50           // Default Ambient Light Update Period (ms)
 
 
 #define SHORTPRESS 100
 #define LONGPRESS 2000
 
-#define CURRENT_LIMIT_LED 4600 // limit the total current sonsumed by LEDs (mA)
+#define CURRENT_LIMIT_LED 8500 // limit the total current sonsumed by LEDs (mA)
 
 #define DEFAULT_SMOOTHING_FACTOR 0.5
 
@@ -119,8 +132,8 @@ enum direction {right, left, up, down};
 #define WIDTH 11
 // height of the led matrix
 #define HEIGHT 11
-// extra leds for ambient light
-#define EXTRA_LEDS 98
+// number of extra leds for ambient light
+#define NUM_AMBIENT_LEDS 98
 
 // own datatype for state machine states
 #define NUM_STATES 6
@@ -171,8 +184,9 @@ Adafruit_NeoMatrix matrix = Adafruit_NeoMatrix(WIDTH, HEIGHT+1, NEOPIXELPIN,
   NEO_GRB            + NEO_KHZ800);
 
 // create object for ambient light
-Adafruit_NeoPixel ambient(EXTRA_LEDS, AMBIENT_PIN, NEO_GRB + NEO_KHZ800);
+Adafruit_NeoPixel ambient(NUM_AMBIENT_LEDS, AMBIENT_PIN, NEO_GRB + NEO_KHZ800);
 
+#define NUM_AMBIENTMODES 6
 // own datatype for AmbientLight animations
 enum AmbientMode {
   AMBIENT_OFF,
@@ -183,13 +197,13 @@ enum AmbientMode {
   AMBIENT_GLITTER
 };
 
-//standard settings for ambient light. --> TODO: Add EEPROM settings for last values
-AmbientMode g_ambientMode = AMBIENT_STATIC; // static mode
-uint8_t     g_ambientSpeed = 20;            // range 1-50
-uint8_t     g_ambientBrightness = 150;      // Helligkeit (0-255), std: 150
-uint32_t    g_ambientColor = LEDMatrix::Color24bit(0, 0, 150); //blue
-uint16_t    g_ambientFrame = 0;             // Frame-Zähler für Animationen
-unsigned long g_lastAmbientUpdate = 0;    // Zeitstempel für das Timing von Animationen
+// standard settings for ambient light.
+uint8_t     g_ambientMode = DEFAULT_AMBIENT_MODE;               // static mode
+uint8_t     g_ambientSpeed = DEFAULT_AMBIENT_SPEED;             // range 1-50
+uint8_t     g_ambientBrightness = DEFAULT_AMBIENT_BRIGHTNESS;   // brightness (0-255)
+uint32_t    g_ambientColor = LEDMatrix::Color24bit(DEFAULT_AMBIENT_RED, DEFAULT_AMBIENT_GREEN, DEFAULT_AMBIENT_BLUE); // set default color
+uint16_t    g_ambientFrame = 0;           // frame counter for animations
+unsigned long g_lastAmbientUpdate = 0;    // time of last ambient update
 
 
 // seven predefined colors24bit (green, red, yellow, purple, orange, lightgreen, blue) 
@@ -252,9 +266,8 @@ int watchdogCounter = 30;
 bool waitForTimeAfterReboot = false; // wait for time update after reboot
 
 // ----------------------------------------------------------------------------------
-//                          function prototyp Labamichnetvoll
+//                          function prototyp ambient light
 //  ----------------------------------------------------------------------------------
-
 
 void updateLEDweekdays();   
 void updateAmbientLight();
@@ -290,6 +303,14 @@ void setup() {
     EEPROM.write(ADR_NM_ACTIVATED, DEFAULT_NM_ACTIVATED);
     EEPROM.write(ADR_COLSHIFTSPEED, DEFAULT_COLSHIFT_SPEED);
     EEPROM.write(ADR_COLSHIFTACTIVE, DEFAULT_COLSHIFT_ACTIVE);
+
+    EEPROM.write(ADR_AMBIENT_MODE, DEFAULT_AMBIENT_MODE);
+    EEPROM.write(ADR_AMBIENT_BRIGHTNESS, DEFAULT_AMBIENT_BRIGHTNESS);
+    EEPROM.write(ADR_AMBIENT_SPEED, DEFAULT_AMBIENT_SPEED);
+    //eeprom is only writable in bytes --> save colors as single values for rgb
+    EEPROM.write(ADR_AMBIENT_RED,   DEFAULT_AMBIENT_RED);
+    EEPROM.write(ADR_AMBIENT_GREEN, DEFAULT_AMBIENT_GREEN);
+    EEPROM.write(ADR_AMBIENT_BLUE,  DEFAULT_AMBIENT_BLUE);
     EEPROM.commit();
   }
 
@@ -300,7 +321,7 @@ void setup() {
   ledmatrix.setupMatrix();
   ledmatrix.setCurrentLimit(CURRENT_LIMIT_LED);
 
-  //Init Ambient Light
+  // Init ambient light
   ambient.begin();
   ambient.show();
 
@@ -436,6 +457,11 @@ void setup() {
   loadNightmodeSettingsFromEEPROM();
   loadBrightnessSettingsFromEEPROM();
   loadColorShiftStateFromEEPROM();
+  // load persistent variables for ambient light from EEPROM
+  loadAmbientColorFromEEPROM();
+  loadCurrentAmbientModeFromEEPROM();
+  loadAmbientBrightnessSettingsFromEEPROM();
+  loadAmbientSpeedSettingsFromEEPROM();
   
   if(ESP.getResetReason().equals("Power On") || ESP.getResetReason().equals("External System")){
     // test quickly each LED
@@ -520,7 +546,7 @@ void loop() {
     lastAnimationStep = millis();
   }
 
-  //periodically update ambientlight
+  //periodically update ambient light
   if (!nightMode && !ledOff && (millis() - lastStepAmbient > behaviorAmbientUpdatePeriod)) {
     behaviorAmbientUpdatePeriod = PERIOD_TIMEVISUUPDATE / g_ambientSpeed;
     updateAmbientLight();
@@ -599,7 +625,7 @@ void loop() {
 }
 
 /* ----------------------------------------------------------------------------------
- *                          Functions Labamichnetvoll
+ *                          functions ambient light
  *  ----------------------------------------------------------------------------------
 */
 
@@ -647,7 +673,7 @@ void updateLEDweekdays(){
 
 
 // -------------------- HELPER --------------------
-// Farbwheel für Regenbogen
+// Farbwheel for rainbow
 uint32_t Wheel(byte WheelPos) {
   WheelPos = 255 - WheelPos;
   if (WheelPos < 85) {
@@ -666,33 +692,27 @@ uint32_t Wheel(byte WheelPos) {
 /**
  * @brief Perform the current animation for the ambient light.
  *        Is continuously called from the main loop().
- *        --> immediate execution!
+ *        --> immediate execution! (no extra show command/function)
  */
 void updateAmbientLight() {
-
   ambient.setBrightness(g_ambientBrightness);
-
   // calculate update_interval (10ms bis 59ms)
   unsigned long update_interval = 60 - g_ambientSpeed;
-
   // modifier for "slow" modes
   if (g_ambientMode == AMBIENT_BREATHING || g_ambientMode == AMBIENT_PULSE_WAVE || g_ambientMode == AMBIENT_GLITTER) {
     // higher value --> slower speed
     update_interval *= 5;
-  }
-  
+  } 
   // update frame-interval based on last one
   if (millis() - g_lastAmbientUpdate > update_interval) {
     g_lastAmbientUpdate = millis(); 
     g_ambientFrame++;               
   }
-  
   // Select the appropriate animation based on the current mode
   switch (g_ambientMode) {
-    
-    //single color
+    // single color
     case AMBIENT_STATIC:
-      for (int i = 0; i < EXTRA_LEDS; i++) {
+      for (int i = 0; i < NUM_AMBIENT_LEDS; i++) {
         ambient.setPixelColor(i, g_ambientColor);
       }
       ambient.show();
@@ -706,7 +726,7 @@ void updateAmbientLight() {
         uint8_t g = ((g_ambientColor >> 8) & 0xFF) * brightness_factor;
         uint8_t b = (g_ambientColor & 0xFF) * brightness_factor;
 
-        for (int i = 0; i < EXTRA_LEDS; i++) {
+        for (int i = 0; i < NUM_AMBIENT_LEDS; i++) {
           ambient.setPixelColor(i, ambient.Color(r, g, b));
         }
         ambient.show();
@@ -714,8 +734,8 @@ void updateAmbientLight() {
       break;
 
     case AMBIENT_RAINBOW_CHASE:
-      for(uint16_t i=0; i < EXTRA_LEDS; i++) {
-        uint32_t color = Wheel(((i * 256 / EXTRA_LEDS) + g_ambientFrame) & 255);
+      for(uint16_t i=0; i < NUM_AMBIENT_LEDS; i++) {
+        uint32_t color = Wheel(((i * 256 / NUM_AMBIENT_LEDS) + g_ambientFrame) & 255);
         ambient.setPixelColor(i, color);
       }
       ambient.show();
@@ -725,7 +745,7 @@ void updateAmbientLight() {
       { // bracket for local variable
         // Generates a continuous wave with the color chosen by the user
         // brightness controlled by sin-wave
-        for (int i = 0; i < EXTRA_LEDS; i++) {
+        for (int i = 0; i < NUM_AMBIENT_LEDS; i++) {
           // value from sin() between -1.0 and 1.0.
           // mapping to brightness_factor from 0.0 to 1.0.
           // 'i * 0.5' controlling the width of the wave.
@@ -745,7 +765,7 @@ void updateAmbientLight() {
     case AMBIENT_GLITTER:
       {
         // allow all existing pixels to fade out slowly
-        for (int i = 0; i < EXTRA_LEDS; i++) {
+        for (int i = 0; i < NUM_AMBIENT_LEDS; i++) {
           uint32_t current_color = ambient.getPixelColor(i);
           // reducing brightness of each color by 85% 
           uint8_t r = ((current_color >> 16) & 0xFF) * 0.85f;
@@ -757,7 +777,7 @@ void updateAmbientLight() {
         // Add new, bright glitter pixels with a certain probability.
         // A 10% chance per animation frame creates a nice, random glitter.
         if (random(100) < 10) {
-          int pos = random(EXTRA_LEDS); // choose random Position
+          int pos = random(NUM_AMBIENT_LEDS); // choose random Position
           // Set the pixel to g_ambientColor for the "glitter" effect.
           ambient.setPixelColor(pos, g_ambientColor);
         }
@@ -810,7 +830,7 @@ void updateStateBehavior(uint8_t state){
           lastMinutes = minutes;
         }
         showStringOnClock(timeAsString, maincolor_clock);
-        updateLEDweekdays();    //Update Weekday for standard wordclock mode
+        updateLEDweekdays();    // Update Weekday for standard wordclock mode
         drawMinuteIndicator(minutes, maincolor_clock);
       }
       break;
@@ -1046,7 +1066,7 @@ void handleLEDDirect() {
  * @brief Check button commands
  * 
  */
-void handleButton(){
+void handleButton()  {
   static bool lastButtonState = false;
   bool buttonPressed = !digitalRead(BUTTONPIN);
   // check rising edge
@@ -1083,7 +1103,7 @@ void handleButton(){
  * @brief Set main color
  * 
  */
-void setMainColor(uint8_t red, uint8_t green, uint8_t blue){
+void setMainColor(uint8_t red, uint8_t green, uint8_t blue)  {
   maincolor_clock = LEDMatrix::Color24bit(red, green, blue);
   EEPROM.put(ADR_MC_RED, red);
   EEPROM.put(ADR_MC_GREEN, green);
@@ -1095,7 +1115,7 @@ void setMainColor(uint8_t red, uint8_t green, uint8_t blue){
  * @brief Load maincolor from EEPROM
  * 
 */
-void loadMainColorFromEEPROM(){
+void loadMainColorFromEEPROM()  {
   uint8_t red = EEPROM.read(ADR_MC_RED);
   uint8_t green = EEPROM.read(ADR_MC_GREEN);
   uint8_t blue = EEPROM.read(ADR_MC_BLUE);
@@ -1110,7 +1130,7 @@ void loadMainColorFromEEPROM(){
  * @brief Load the current state from EEPROM
  * 
  */
-void loadCurrentStateFromEEPROM(){
+void loadCurrentStateFromEEPROM()  {
   currentState = EEPROM.read(ADR_STATE);
   if(currentState >= NUM_STATES){
     currentState = st_clock;
@@ -1122,8 +1142,7 @@ void loadCurrentStateFromEEPROM(){
 /**
  * @brief Load the nightmode settings from EEPROM
  */
-void loadNightmodeSettingsFromEEPROM()
-{
+void loadNightmodeSettingsFromEEPROM()  {
   nightModeStartHour = EEPROM.read(ADR_NM_START_H);
   nightModeStartMin = EEPROM.read(ADR_NM_START_M);
   nightModeEndHour = EEPROM.read(ADR_NM_END_H);
@@ -1143,8 +1162,7 @@ void loadNightmodeSettingsFromEEPROM()
  *
  * lower limit is 10 so that the LEDs are not completely off
  */
-void loadBrightnessSettingsFromEEPROM()
-{
+void loadBrightnessSettingsFromEEPROM()  {
   brightness = EEPROM.read(ADR_BRIGHTNESS);
   if(brightness < 10) brightness = 10;
   logger.logString("Brightness: " + String(brightness));
@@ -1155,14 +1173,67 @@ void loadBrightnessSettingsFromEEPROM()
  * @brief load the color shift speed from EEPROM
  *
  */
-void loadColorShiftStateFromEEPROM()
-{
+void loadColorShiftStateFromEEPROM()  {
   dynColorShiftSpeed = EEPROM.read(ADR_COLSHIFTSPEED);
   if (dynColorShiftSpeed == 0) dynColorShiftSpeed = 1;
   logger.logString("ColorShiftSpeed: " + String(dynColorShiftSpeed));
   dynColorShiftActive = EEPROM.read(ADR_COLSHIFTACTIVE);
   logger.logString("ColorShiftActive: " + String(dynColorShiftActive));
 }
+
+/**
+ * @brief Load ambientcolor from EEPROM
+ * 
+ * To avoid restricting the user's creative choice, 
+ * no validation is performed on the brightness of the stored color.
+*/
+void loadAmbientColorFromEEPROM() {
+  uint8_t red = EEPROM.read(ADR_AMBIENT_RED);
+  uint8_t green = EEPROM.read(ADR_AMBIENT_GREEN);
+  uint8_t blue = EEPROM.read(ADR_AMBIENT_BLUE);
+  g_ambientColor = LEDMatrix::Color24bit(red, green, blue);
+}
+
+/**
+ * @brief Load the current ambientmode from EEPROM
+ * 
+ * This value is not saved to EEPROM immediately to avoid redundant writes.
+ * The user is expected to commit all changes at once using the main "SAVE Ambient" button.
+ */
+void loadCurrentAmbientModeFromEEPROM() {
+  g_ambientMode = EEPROM.read(ADR_AMBIENT_MODE);
+  if(g_ambientMode >= NUM_AMBIENTMODES){
+    g_ambientMode = DEFAULT_AMBIENT_MODE;
+  }
+}
+
+/**
+ * @brief Load the ambient brightness settings from EEPROM
+ *
+ * this is limited by the fact that there's an additional mode "AMBIENT_OFF"
+ * This value is not saved to EEPROM immediately to avoid redundant writes.
+ * The user is expected to commit all changes at once using the main "SAVE Ambient" button.
+ */
+void loadAmbientBrightnessSettingsFromEEPROM()  {
+  g_ambientBrightness = EEPROM.read(ADR_AMBIENT_BRIGHTNESS);
+  if(g_ambientBrightness < 10) g_ambientBrightness = 10;
+  ambient.setBrightness(g_ambientBrightness);
+}
+
+/**
+ * @brief Load the ambient animation speed settings from EEPROM
+ *
+ * check if setting is between lower and upper limit, else overwrite with default (range 1-50)
+ * This value is not saved to EEPROM immediately to avoid redundant writes.
+ * The user is expected to commit all changes at once using the main "SAVE Ambient" button.
+ */
+void loadAmbientSpeedSettingsFromEEPROM()  {
+  g_ambientSpeed = EEPROM.read(ADR_AMBIENT_SPEED);
+  if(g_ambientSpeed < 1 || g_ambientSpeed > 50) {
+    g_ambientSpeed = DEFAULT_AMBIENT_SPEED;
+  }
+}
+
 
 /**
  * @brief Handler for handling commands sent to "/cmd" url
@@ -1234,6 +1305,17 @@ void handleCommand() {
     else if (server.argName(0) == "ambient_brightness")
     {
       g_ambientBrightness = server.arg(0).toInt();
+    }
+    else if (server.argName(0) == "ambient_save")
+    {
+      EEPROM.write(ADR_AMBIENT_MODE, g_ambientMode);
+      EEPROM.write(ADR_AMBIENT_BRIGHTNESS, g_ambientBrightness);
+      EEPROM.write(ADR_AMBIENT_SPEED, g_ambientSpeed);
+      //eeprom is only writable in bytes --> save colors as single values for rgb
+      EEPROM.write(ADR_AMBIENT_RED,   (g_ambientColor >> 16) & 0xff );    //extract red value from uint32_t 
+      EEPROM.write(ADR_AMBIENT_GREEN, (g_ambientColor >>  8) & 0xff );    //extract green value from uint32_t
+      EEPROM.write(ADR_AMBIENT_BLUE,   g_ambientColor & 0xff);            //extract blue value from uint32_t
+      EEPROM.commit();
     }
     else if(server.argName(0) == "ledoff"){
       String modestr = server.arg(0);

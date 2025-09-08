@@ -260,6 +260,22 @@
 		margin: 5px; 
 		background-color: rgba(147, 147, 158, 0.4);
 	}
+
+	.info-text {
+    font-size: small;
+    color: rgba(255, 255, 255, 0.8);
+    margin-top: 15px;
+    margin-bottom: 5px;
+    text-align: center;
+	}
+
+	.custom-container {
+    	/* Richtet die Elemente im Inneren (Text, Button) linksbündig aus */
+    	display: flex;
+    	flex-direction: column;
+    	align-items: flex-start; /* Das ist der entscheidende Befehl für linksbündig */
+    	padding-left: 10px; /* Etwas Abstand zum linken Rand */
+	}
   
 	</style>
 	<title>WORDCLOCK 2.0</title>
@@ -506,6 +522,16 @@
 			<input type="color" id="ambientcolor" name="ambientcolor"
 				onchange="sendCommand('./cmd?ambient_color=' + this.value.substring(1))">
 		</div>
+
+		<div class="custom-container">
+			<p id="ambient-save-info" class="info-text">
+				Saves the current ambient light settings permanently.
+			</p>
+
+			<div class="buttonClass save-button" style="width: auto; padding-left: 15px; padding-right: 15px;" onclick="saveAmbientSettings()">
+				SAVE AMBIENT
+			</div>
+		</div>
 		
 
 		<script>
@@ -691,6 +717,11 @@
 				var xmlhttp = new XMLHttpRequest();
 				xmlhttp.open("GET", command, true);
 				xmlhttp.send();
+			}
+
+			function saveAmbientSettings() {
+				console.log("Sending ambient_save command to ESP...");
+				sendCommand('./cmd?ambient_save');
 			}
 
 			function saveSettings(){
