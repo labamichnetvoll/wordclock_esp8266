@@ -23,10 +23,12 @@ void UDPLogger::logString(String logmessage){
     }
     logmessage = _name + ": " + logmessage;
     Serial.println(logmessage);
-    _Udp.beginPacketMulticast(_multicastAddr, _port, _interfaceAddr);
-    logmessage.toCharArray(_packetBuffer, 100);
-    _Udp.print(_packetBuffer);
-    _Udp.endPacket();
+    #ifndef NO_UDP_LOGGING
+        _Udp.beginPacketMulticast(_multicastAddr, _port, _interfaceAddr);
+        logmessage.toCharArray(_packetBuffer, 100);
+        _Udp.print(_packetBuffer);
+        _Udp.endPacket();
+    #endif
     _lastSend=millis();
 }
 
