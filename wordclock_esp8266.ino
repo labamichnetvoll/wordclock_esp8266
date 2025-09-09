@@ -699,7 +699,7 @@ void updateAmbientLight() {
   // calculate update_interval (10ms bis 59ms)
   unsigned long update_interval = 60 - g_ambientSpeed;
   // modifier for "slow" modes
-  if (g_ambientMode == AMBIENT_BREATHING || g_ambientMode == AMBIENT_PULSE_WAVE || g_ambientMode == AMBIENT_GLITTER) {
+  if (g_ambientMode == AMBIENT_PULSE_WAVE || g_ambientMode == AMBIENT_GLITTER) {
     // higher value --> slower speed
     update_interval *= 5;
   } 
@@ -720,14 +720,16 @@ void updateAmbientLight() {
 
     case AMBIENT_BREATHING:
       { // bracket for local variable
-        float brightness_factor = (sin(g_ambientFrame * 0.1) + 1.0) / 2.0; // Faktor zwischen 0.0 und 1.0
-        
-        uint8_t r = ((g_ambientColor >> 16) & 0xFF) * brightness_factor;
-        uint8_t g = ((g_ambientColor >> 8) & 0xFF) * brightness_factor;
-        uint8_t b = (g_ambientColor & 0xFF) * brightness_factor;
+        const int period = 200;
+        const int half_period = period / 2;
 
+        float wave = half_period - abs((g_ambientFrame % period) - half_period);
+        float normalized_wave = wave / half_period;
+        uint8_t brightness = 30 + (normalized_wave * 225);
+      
+        ambient.setBrightness(brightness);
         for (int i = 0; i < NUM_AMBIENT_LEDS; i++) {
-          ambient.setPixelColor(i, ambient.Color(r, g, b));
+          ambient.setPixelColor(i, g_ambientColor);
         }
         ambient.show();
       }
