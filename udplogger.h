@@ -9,6 +9,10 @@
  * 
  */
 
+// Comment if UDP_Logging should be enabled, else logging only via Serial
+// default: No logging via UDP (not necessary)
+#define NO_UDP_LOGGING
+
 #ifndef udplogger_h
 #define udplogger_h
 
