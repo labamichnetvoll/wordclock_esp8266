@@ -44,6 +44,12 @@
 #include "snake.h"
 #include "pong.h"
 
+/* 
+ *    DEBUG LEDS
+ *    if defined, clock will perform LED test for 10 seconds per color (red, green, blue)
+*/
+// #define DEBUG_LEDS
+
 
 // ----------------------------------------------------------------------------------
 //                                        CONSTANTS
@@ -324,6 +330,39 @@ void setup() {
   // Init ambient light
   ambient.begin();
   ambient.show();
+
+  #ifdef DEBUG_LEDS
+    Serial.print("DEBUG LEDS active\n");
+    for (int ab = 0; ab < 10; ab++){
+      matrix.fillScreen(0);
+      for(int y = 0; y < HEIGHT; y++){
+        for(int x = 0; x < WIDTH; x++){
+        matrix.drawPixel(x, y, matrix.Color(255, 0, 0));
+        matrix.show();
+        delay(10); 
+        }
+      }
+    }
+    delay(3000);
+    matrix.fillScreen(0);
+    for(int y = 0; y < HEIGHT; y++){
+        for(int x = 0; x < WIDTH; x++){
+        matrix.drawPixel(x, y, matrix.Color(0, 255, 0));
+        matrix.show();
+        delay(10); 
+        }
+    }
+    delay(3000);
+    matrix.fillScreen(0);
+    for(int y = 0; y < HEIGHT; y++){
+        for(int x = 0; x < WIDTH; x++){
+        matrix.drawPixel(x, y, matrix.Color(0, 0, 255));
+        matrix.show();
+        delay(10); 
+        }
+    }
+    delay(3000);
+  #endif
 
   if(ESP.getResetReason().equals("Power On") || ESP.getResetReason().equals("External System")){
     // Turn on minutes leds (blue)
