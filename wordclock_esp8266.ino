@@ -798,6 +798,21 @@ void updateAmbientLight() {
 }
 
 
+/**
+ * @brief shows green indicator after saving ambient settings to eeprom
+ */
+void ambientSaveSuccess()  {
+  ambient.setBrightness(DEFAULT_AMBIENT_BRIGHTNESS);
+  for (int i = 0; i <= 1; i++)  {
+    ambient.fill(colors24bit[0],0);
+    ambient.show();
+    delay(200);
+    ambient.clear();
+    ambient.show();
+    delay(200);
+  }
+  ambient.setBrightness(g_ambientBrightness);
+}
 
 
 // ----------------------------------------------------------------------------------
@@ -1318,6 +1333,7 @@ void handleCommand() {
       EEPROM.write(ADR_AMBIENT_GREEN, (g_ambientColor >>  8) & 0xff );    //extract green value from uint32_t
       EEPROM.write(ADR_AMBIENT_BLUE,   g_ambientColor & 0xff);            //extract blue value from uint32_t
       EEPROM.commit();
+      ambientSaveSuccess();
     }
     else if(server.argName(0) == "ledoff"){
       String modestr = server.arg(0);
