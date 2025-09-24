@@ -35,6 +35,7 @@
 #include <DNSServer.h>
 #include <WiFiManager.h>                //https://github.com/tzapu/WiFiManager WiFi Configuration Magic
 #include <EEPROM.h>                     //from ESP8266 Arduino Core (automatically installed when ESP8266 was installed via Boardmanager)
+#include "RTClib.h"
 
 // own libraries
 #include "udplogger.h"
@@ -96,6 +97,7 @@
 #define NEOPIXELPIN 14      // pin to which the NeoPixels are attached
 #define BUTTONPIN 12        // pin to which the button is attached
 #define AMBIENT_PIN D8      // pin to which to ambient light is attached
+#define rtcInterruptPin 13  // pin to which the interrupt line from rtc module is connected to on pcb
 #define LEFT 1
 #define RIGHT 2
 #define LINE 10
@@ -236,6 +238,7 @@ uint16_t behaviorAmbientUpdatePeriod = PERIOD_AMBIENTUPDATE;   //holdes the peri
 UDPLogger logger;
 WiFiUDP NTPUDP;
 NTPClientPlus ntp = NTPClientPlus(NTPUDP, "pool.ntp.org", utcOffset, true);
+RTC_PCF8523 rtc;    //object for local RTC module 
 LEDMatrix ledmatrix = LEDMatrix(&matrix, brightness, &logger);
 Tetris mytetris = Tetris(&ledmatrix, &logger);
 Snake mysnake = Snake(&ledmatrix, &logger);
@@ -262,6 +265,8 @@ uint8_t nightModeEndMin = DEFAULT_NM_END_MIN;
 
 // Watchdog counter to trigger restart if NTP update was not possible 30 times in a row (5min)
 int watchdogCounter = 30;
+// Variables modified during an interrupt must be declared volatile
+volatile bool countdownInterruptTriggered = false;
 
 bool waitForTimeAfterReboot = false; // wait for time update after reboot
 
@@ -272,6 +277,17 @@ bool waitForTimeAfterReboot = false; // wait for time update after reboot
 void updateLEDweekdays();   
 void updateAmbientLight();
 
+
+// ----------------------------------------------------------------------------------
+//                                        ISR
+// ----------------------------------------------------------------------------------
+
+// Triggered by the PCF8523 Countdown Timer interrupt at the end of a countdown
+// period. Meanwhile, the PCF8523 immediately starts the countdown again.
+ICACHE_RAM_ATTR void ISRCounter() {
+  // Set a flag to run code in the loop():
+  countdownInterruptTriggered = true;
+}
 
 // ----------------------------------------------------------------------------------
 //                                        SETUP
@@ -316,6 +332,8 @@ void setup() {
 
   // configure button pin as input
   pinMode(BUTTONPIN, INPUT_PULLUP);
+  // configure interrupt pin for RTC-IC
+  pinMode(rtcInterruptPin, INPUT);  //external PullUp used (on pcb)
 
   // setup Matrix LED functions
   ledmatrix.setupMatrix();
@@ -451,6 +469,38 @@ void setup() {
   logger.logString("NTP running");
   logger.logString("Time: " +  ntp.getFormattedTime());
 
+  // setup RTC
+  if (! rtc.begin()) {
+    Serial.println("Couldn't find RTC");
+    Serial.flush();
+    while (1) delay(10);
+  } 
+  delay(1000);
+
+  if (! rtc.initialized() || rtc.lostPower()) {
+    Serial.println("RTC is NOT initialized, let's set the time!");
+    // When time needs to be set on a new device, or after a power loss, the
+    // following line sets the RTC to the date & time this sketch was compiled
+    rtc.adjust(DateTime(F(__DATE__), F(__TIME__)));
+    // This line sets the RTC with an explicit date & time, for example to set
+    // January 21, 2014 at 3am you would call:
+    // rtc.adjust(DateTime(2014, 1, 21, 3, 0, 0));
+    //
+    // Note: allow 2 seconds after inserting battery or applying external power
+    // without battery before calling adjust(). This gives the PCF8523's
+    // crystal oscillator time to stabilize. If you call adjust() very quickly
+    // after the RTC is powered, lostPower() may still return true.
+  }
+  rtc.start();
+  // Timer configuration is not cleared on an RTC reset due to battery backup!
+  rtc.deconfigureAllTimers();
+
+  //TODO: correct time update to full minutes 
+  rtc.enableCountdownTimer(PCF8523_FrequencyMinute, 1);  // 1 minute
+  attachInterrupt(digitalPinToInterrupt(rtcInterruptPin),ISRCounter,FALLING);
+
+
+
   // load persistent variables from EEPROM
   loadMainColorFromEEPROM();
   loadCurrentStateFromEEPROM();
@@ -565,6 +615,12 @@ void loop() {
     lastStateChange = millis();
   }
 
+  // perform rtc update
+  // TODO: what to do here??
+  if (countdownInterruptTriggered)  {
+      Serial.println("RTC Interrupt triggered.");
+      countdownInterruptTriggered = false;
+  }
 
   // NTP time update
   if(millis() - lastNTPUpdate > PERIOD_NTPUPDATE){
@@ -635,7 +691,11 @@ void loop() {
  * TODO: remove hardcoded positions, add search function?
  */
 void updateLEDweekdays(){
-  unsigned int weekday = ntp.getDayOfWeek();    //return weekday as unsigned int, 1:Monday - 7: Sunday 
+  //unsigned int weekday = ntp.getDayOfWeek();    //return weekday as unsigned int, 1:Monday - 7: Sunday 
+  //change to rtc time
+  DateTime now = rtc.now();
+  unsigned int dayOfWeek = now.dayOfTheWeek();    //returns weekday as unsigned int, 0: Sunday, 1: Monday, 6:Saturday
+  unsigned int weekday = (dayOfWeek == 0) ? 7 : dayOfWeek;  //return weekday as unsigned int, 1:Monday - 7: Sunday
 
   switch (weekday)  {
 
@@ -838,8 +898,15 @@ void updateStateBehavior(uint8_t state){
           filterFactor = DEFAULT_SMOOTHING_FACTOR;
           behaviorUpdatePeriod = PERIOD_TIMEVISUUPDATE;       
         }
+        /* ntp update
         uint8_t hours = ntp.getHours24();
         uint8_t minutes = ntp.getMinutes();
+        */
+        // new way of Time Update via RTC
+        DateTime now = rtc.now();
+        uint8_t hours = now.hour();
+        uint8_t minutes = now.minute(); 
+
         static uint8_t lastMinutes = 0;
         static String timeAsString = "";
         if(lastMinutes != minutes){
@@ -854,8 +921,15 @@ void updateStateBehavior(uint8_t state){
     // state diclock
     case st_diclock:
       {
-        int hours = ntp.getHours24();
-        int minutes = ntp.getMinutes();
+        /* ntp update
+        uint8_t hours = ntp.getHours24();
+        uint8_t minutes = ntp.getMinutes();
+        */
+        // new way of Time Update via RTC
+        DateTime now = rtc.now();
+        uint8_t hours = now.hour();
+        uint8_t minutes = now.minute(); 
+
         showDigitalClock(hours, minutes, maincolor_clock);
       }
       break;
@@ -919,8 +993,15 @@ void updateStateBehavior(uint8_t state){
  */
 void checkNightmode(){
   logger.logString("Check nightmode");
-  int hours = ntp.getHours24();
-  int minutes = ntp.getMinutes();
+
+  /* ntp update
+  uint8_t hours = ntp.getHours24();
+  uint8_t minutes = ntp.getMinutes();
+  */
+  // new way of Time Update via RTC
+  DateTime now = rtc.now();
+  uint8_t hours = now.hour();
+  uint8_t minutes = now.minute(); 
   
   nightMode = false; // Initial assumption
 
