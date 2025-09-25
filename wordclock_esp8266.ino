@@ -1460,6 +1460,18 @@ void handleCommand() {
       ledmatrix.setBrightness(brightness);
       lastNightmodeCheck = millis()  - PERIOD_NIGHTMODECHECK;
     }
+    else if (server.argName(0) == "setBrowserTime"){
+      String timestr = server.arg(0) + "-";
+      int year = split(timestr, '-', 0).toInt();
+      uint8_t month = split(timestr, '-', 1).toInt();
+      uint8_t day = split(timestr, '-', 2).toInt();
+      uint8_t hours = split(timestr, '-', 3).toInt();
+      uint8_t minutes = split(timestr, '-', 4).toInt();
+      uint8_t seconds = split(timestr, '-', 5).toInt();
+      //adjust RTC Module to received browser time
+      rtc.adjust(DateTime(year, month, day, hours, minutes, seconds));
+
+    }
     else if (server.argName(0) == "resetwifi"){
       wifiManager.resetSettings();
       // run LED test.

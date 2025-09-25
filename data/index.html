@@ -304,22 +304,33 @@
 				<label for="nm_end" style="align-self: flex-start">Nightmode end time: </label>
 				<input type="time" id="nm_end" name="nm_end" min="00:00" max="23:59">
 			</div>
-			<div class="checkbox-container">
-				<label for="NightMode" style="align-self: flex-start">Nightmode</label> 
-				<div>
-					<input name= "NightMode" id="NightMode" type="checkbox" class="toggle">
+				<!-- NEUER BEREICH FÜR BÜNDIGE CHECKBOXEN -->
+			<div style="display: flex; flex-direction: column; align-items: flex-start; margin-left: 10px; margin-top: 10px; width: calc(100% - 20px);">
+				<div class="checkbox-container" style="justify-content: flex-start; margin-bottom: 5px;">
+					<label for="NightMode" style="width: 150px; text-align: left; margin-right: 0px;">Nightmode</label> 
+					<div>
+						<input name= "NightMode" id="NightMode" type="checkbox" class="toggle">
+					</div>
+				</div>
+				<div class="checkbox-container" style="justify-content: flex-start;">
+					<label for="ResetWifi" style="width: 150px; text-align: left; margin-right: 0px;">Reset Wifi</label> 
+					<div>
+						<input name= "ResetWifi" id="ResetWifi" type="checkbox" class="toggle">
+					</div>
 				</div>
 			</div>
-			<div class="checkbox-container">
-				<label for="ResetWifi" style="align-self: flex-start">Reset Wifi</label> 
-				<div>
-					<input name= "ResetWifi" id="ResetWifi" type="checkbox" class="toggle">
-				</div>
-			</div>
-			<div class="buttonClass save-button" onclick="saveSettings()">SAVE</div>
-		</div>
+			<!-- ENDE NEUER BEREICH FÜR BÜNDIGE CHECKBOXEN -->
 
-		<div class="verticalline">
+			<!-- NEUER BEREICH FÜR LINKSBÜNDIGE BUTTONS -->
+			<div style="display: flex; justify-content: flex-start;  margin-left: 10px; margin-bottom: 15px; ">
+				<div class="buttonClass save-button" onclick="saveSettings()" style="margin-right: 10px; width: 80px;">SAVE</div>
+				<div class="buttonClass save-button" onclick="saveBrowserTime()" style="width: 120px;">SYNC TIME</div>
+			</div>
+			<!-- ENDE NEUER BEREICH FÜR LINKSBÜNDIGE BUTTONS -->
+				</div>	
+			</div>
+
+		<div class="verticalline" style="margin-top: 20px;">
 		</div>
 		<div class="headline">
 			MODE
@@ -754,6 +765,30 @@
 				else {
 					container.classList.add("show");
 				}
+			}
+
+			// format of return string: YYYY-MM-DD-HH-MM-SS)
+			function getBrowserTime() {
+				const now = new Date();
+				const year = now.getFullYear();
+				const month = String(now.getMonth() + 1).padStart(2, '0'); // Monate sind 0-indiziert
+				const day = String(now.getDate()).padStart(2, '0');
+				const hours = String(now.getHours()).padStart(2, '0');
+				const minutes = String(now.getMinutes()).padStart(2, '0');
+				const seconds = String(now.getSeconds()).padStart(2, '0');
+				return `${year}-${month}-${day}-${hours}-${minutes}-${seconds}`;
+			}
+			
+			// send browser time to Wordclock
+			function saveBrowserTime()	{
+				const browserTime = getBrowserTime();
+				//console.log("Aktuelle Browserzeit:", browserTime);	//debug in browser console
+				var cmdstr = "./cmd?setBrowserTime=";
+				cmdstr += encodeURIComponent(browserTime);
+				console.log(cmdstr);	//debug url
+				sendCommand(cmdstr);
+				toggleSettings();	//close settings menue
+				alert("UHR syncronisiert");		//optional message to user
 			}
 			
 		</script>
