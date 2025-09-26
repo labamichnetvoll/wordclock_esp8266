@@ -1,5 +1,5 @@
 /**
- * Wordclock 2.0 - Wordclock with ESP8266 and NTP time update
+ * Wordclock 2.0 - Wordclock with ESP8266 and RTC time update
  * 
  * created by techniccontroller 04.12.2021
  * modified by labamichnetvoll 2025
@@ -39,7 +39,6 @@
 
 // own libraries
 #include "udplogger.h"
-#include "ntp_client_plus.h"
 #include "ledmatrix.h"
 #include "tetris.h"
 #include "snake.h"
@@ -110,7 +109,6 @@
 #define PERIOD_PONG 10
 #define TIMEOUT_LEDDIRECT 5000
 #define PERIOD_STATECHANGE 10000
-#define PERIOD_NTPUPDATE 30000
 #define PERIOD_TIMEVISUUPDATE 1000
 #define PERIOD_MATRIXUPDATE 100
 #define PERIOD_NIGHTMODECHECK 20000
@@ -227,7 +225,6 @@ long lastStep = millis();           // time of last animation step
 long lastStepAmbient = millis();    // time of last ambient animation step
 long lastLEDdirect = -TIMEOUT_LEDDIRECT; // time of last direct LED command (=> fall back to normal mode after timeout)
 long lastStateChange = millis();    // time of last state change
-long lastNTPUpdate = millis() - (PERIOD_NTPUPDATE-3000);  // time of last NTP update
 long lastAnimationStep = millis();  // time of last Matrix update
 long lastNightmodeCheck = millis()  - (PERIOD_NIGHTMODECHECK-3000); // time of last nightmode check
 long buttonPressStart = 0;          // time of push button press start 
@@ -236,8 +233,6 @@ uint16_t behaviorAmbientUpdatePeriod = PERIOD_AMBIENTUPDATE;   //holdes the peri
 
 // Create necessary global objects
 UDPLogger logger;
-WiFiUDP NTPUDP;
-NTPClientPlus ntp = NTPClientPlus(NTPUDP, "pool.ntp.org", utcOffset, true);
 RTC_PCF8523 rtc;    //object for local RTC module 
 LEDMatrix ledmatrix = LEDMatrix(&matrix, brightness, &logger);
 Tetris mytetris = Tetris(&ledmatrix, &logger);
@@ -263,8 +258,6 @@ uint8_t nightModeStartMin = DEFAULT_NM_START_MIN;
 uint8_t nightModeEndHour = DEFAULT_NM_END_HOUR;
 uint8_t nightModeEndMin = DEFAULT_NM_END_MIN;
 
-// Watchdog counter to trigger restart if NTP update was not possible 30 times in a row (5min)
-int watchdogCounter = 30;
 // Variables modified during an interrupt must be declared volatile
 volatile bool countdownInterruptTriggered = false;
 
@@ -463,11 +456,6 @@ void setup() {
   delay(10);
   logger.logString("Reset Reason: " + ESP.getResetReason());
 
-  // setup NTP
-  updateUTCOffsetFromTimezoneAPI(logger, ntp);
-  ntp.setupNTPClient();
-  logger.logString("NTP running");
-  logger.logString("Time: " +  ntp.getFormattedTime());
 
   // setup RTC
   if (! rtc.begin()) {
@@ -622,56 +610,6 @@ void loop() {
       countdownInterruptTriggered = false;
   }
 
-  // NTP time update
-  if(millis() - lastNTPUpdate > PERIOD_NTPUPDATE){
-    int res = ntp.updateNTP();
-    if(res == 0){
-      ntp.calcDate();
-      logger.logString("NTP-Update successful");
-      logger.logString("Time: " +  ntp.getFormattedTime());
-      logger.logString("Date: " +  ntp.getFormattedDate());
-      logger.logString("Day of Week (Mon=1, Sun=7): " +  String(ntp.getDayOfWeek()));
-      logger.logString("Summertime: " + String(ntp.updateSWChange()));
-      lastNTPUpdate = millis();
-      watchdogCounter = 30;
-      checkNightmode();
-      if(waitForTimeAfterReboot && !nightMode){
-        // update mode (e.g. write the current time onto the matrix) first time after reboot
-        entryAction(currentState);
-        updateStateBehavior(currentState);
-        ledmatrix.drawOnMatrixInstant();
-      }
-      waitForTimeAfterReboot = false;
-    }
-    else if(res == -1){
-      logger.logString("NTP-Update not successful. Reason: Timeout");
-      lastNTPUpdate += 10000;
-      watchdogCounter--;
-    }
-    else if(res == 1){
-      logger.logString("NTP-Update not successful. Reason: Too large time difference");
-      logger.logString("Time: " +  ntp.getFormattedTime());
-      logger.logString("Date: " +  ntp.getFormattedDate());
-      logger.logString("Day of Week (Mon=1, Sun=7): " +  ntp.getDayOfWeek());
-      logger.logString("Summertime: " + String(ntp.updateSWChange()));
-      lastNTPUpdate += 10000;
-      watchdogCounter--;
-    }
-    else {
-      logger.logString("NTP-Update not successful. Reason: NTP time not valid (<1970)");
-      lastNTPUpdate += 10000;
-      watchdogCounter--;
-    }
-
-    logger.logString("Watchdog Counter: " + String(watchdogCounter));
-    if(watchdogCounter <= 0){
-        logger.logString("Trigger restart due to watchdog...");
-        delay(100);
-        ESP.restart();
-    }
-    
-  }
-
   // check if nightmode need to be activated
   if(millis() - lastNightmodeCheck > PERIOD_NIGHTMODECHECK && !waitForTimeAfterReboot){
     checkNightmode();
@@ -691,7 +629,6 @@ void loop() {
  * TODO: remove hardcoded positions, add search function?
  */
 void updateLEDweekdays(){
-  //unsigned int weekday = ntp.getDayOfWeek();    //return weekday as unsigned int, 1:Monday - 7: Sunday 
   //change to rtc time
   DateTime now = rtc.now();
   unsigned int dayOfWeek = now.dayOfTheWeek();    //returns weekday as unsigned int, 0: Sunday, 1: Monday, 6:Saturday
@@ -898,10 +835,6 @@ void updateStateBehavior(uint8_t state){
           filterFactor = DEFAULT_SMOOTHING_FACTOR;
           behaviorUpdatePeriod = PERIOD_TIMEVISUUPDATE;       
         }
-        /* ntp update
-        uint8_t hours = ntp.getHours24();
-        uint8_t minutes = ntp.getMinutes();
-        */
         // new way of Time Update via RTC
         DateTime now = rtc.now();
         uint8_t hours = now.hour();
@@ -921,10 +854,6 @@ void updateStateBehavior(uint8_t state){
     // state diclock
     case st_diclock:
       {
-        /* ntp update
-        uint8_t hours = ntp.getHours24();
-        uint8_t minutes = ntp.getMinutes();
-        */
         // new way of Time Update via RTC
         DateTime now = rtc.now();
         uint8_t hours = now.hour();
@@ -994,10 +923,6 @@ void updateStateBehavior(uint8_t state){
 void checkNightmode(){
   logger.logString("Check nightmode");
 
-  /* ntp update
-  uint8_t hours = ntp.getHours24();
-  uint8_t minutes = ntp.getMinutes();
-  */
   // new way of Time Update via RTC
   DateTime now = rtc.now();
   uint8_t hours = now.hour();
