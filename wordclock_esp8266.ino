@@ -532,7 +532,7 @@ void setup() {
     ledmatrix.drawOnMatrixInstant();
   }
   else {
-    waitForTimeAfterReboot = true;
+    // waitForTimeAfterReboot = true;   // not needed with RTC, could be used to message user to set time at first startup
   }
 
   // run the entry action for the initial state
